@@ -3,17 +3,18 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/joemiller/certin"
 )
 
@@ -26,17 +27,19 @@ type HTTPCall struct {
 
 // HTTPRequest models the information about an HTTP request that is exposed over the API and serialized to disk
 type HTTPRequest struct {
-	Method      string `json:"method"`
-	URL         string `json:"url"`
-	Host        string `json:"host"`
-	ContentType string `json:"content_type"`
+	Method string      `json:"method"`
+	URL    string      `json:"url"`
+	Host   string      `json:"host"`
+	Header http.Header `json:"header"`
+	Body   []byte      `json:"body"`
 }
 
 // HTTPResponse models the information about an HTTP request that is exposed over the API and serialized to disk
 type HTTPResponse struct {
-	StatusCode int    `json:"status_code"`
-	Status     string `json:"status"`
-	Length     int64  `json:"length"`
+	StatusCode int         `json:"status_code"`
+	Status     string      `json:"status"`
+	Header     http.Header `json:"header"`
+	Body       []byte      `json:"body"`
 }
 
 // httpListener receives HTTPCalls each time a request/response is completed
@@ -126,6 +129,17 @@ func (conn *countBytesConn) Write(b []byte) (int, error) {
 	return n, err
 }
 
+func ipFromAddr(addr net.Addr) net.IP {
+	switch addr := addr.(type) {
+	case *net.UDPAddr:
+		return addr.IP
+	case *net.TCPAddr:
+		return addr.IP
+	default:
+		return nil
+	}
+}
+
 // listen for incomming connections on l and proxy each one to the outside world, while sending
 // information about the request/response pairs to all HTTP listeners
 func proxyHTTPS(conn net.Conn, root *certin.KeyAndCert) {
@@ -145,7 +159,8 @@ func proxyHTTPS(conn net.Conn, root *certin.KeyAndCert) {
 			verbosef("got challenge for %q", hello.ServerName)
 			serverName = hello.ServerName
 
-			onthefly, err := certin.NewCert(root, certin.Request{CN: hello.ServerName})
+			altNames := []string{ipFromAddr(conn.LocalAddr()).String()}
+			onthefly, err := certin.NewCert(root, certin.Request{CN: hello.ServerName, SANs: altNames})
 			if err != nil {
 				errorf("error creating cert: %v", err)
 				return nil, fmt.Errorf("error creating on-the-fly certificate for %q: %w", hello.ServerName, err)
@@ -217,6 +232,7 @@ func proxyHTTP(conn net.Conn) {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
 
 	// capture the request body into memory for inspection later
@@ -268,40 +284,54 @@ func proxyHTTP(conn net.Conn) {
 	verbosef("finished replying to %v %v %v (%d bytes) with %v %v (%d bytes)",
 		req.Method, req.URL, req.Proto, reqbody.Len(), resp.Status, resp.Proto, respbody.Len())
 
-	// log the request (do not do this earlier since reqbody may not be compete until now)
-	reqcolor := color.New(color.FgBlue, color.Bold)
-	reqcolor.Printf("---> %v %v\n", req.Method, req.URL)
-
-	// log the response
-	var respcolor *color.Color
-	switch {
-	case resp.StatusCode < 300:
-		respcolor = color.New(color.FgGreen)
-	case resp.StatusCode < 400:
-		respcolor = color.New(color.FgMagenta)
-	case resp.StatusCode < 500:
-		respcolor = color.New(color.FgYellow)
-	default:
-		respcolor = color.New(color.FgRed)
+	// deal with content compression
+	requestbody, err := decodeContent(&reqbody, req.Header["Content-Encoding"])
+	if err != nil {
+		errorf("error decoding request body as %v, will return raw bytes", req.Header["Content-Encoding"])
+		requestbody = reqbody.Bytes()
 	}
-	respcolor.Printf("<--- %v %v (%d bytes)\n", resp.StatusCode, req.URL, respbody.Len())
+
+	responsebody, err := decodeContent(&respbody, resp.Header["Content-Encoding"])
+	if err != nil {
+		errorf("error decoding response body as %v, will return raw bytes", resp.Header["Content-Encoding"])
+		requestbody = reqbody.Bytes()
+	}
 
 	// make the summary the we will log to disk and expose via the API
 	call := HTTPCall{
 		Request: HTTPRequest{
-			Method:      req.Method,
-			URL:         req.URL.String(),
-			Host:        req.Host,
-			ContentType: req.Header.Get("Content-Type"),
+			Method: req.Method,
+			URL:    req.URL.String(),
+			Host:   req.Host,
+			Header: req.Header,
+			Body:   requestbody,
 		},
 		Response: HTTPResponse{
 			Status:     resp.Status,
 			StatusCode: resp.StatusCode,
-			Length:     int64(respbody.Len()),
+			Header:     resp.Header,
+			Body:       responsebody,
 		},
 		TotalBytes: counts.read + counts.written,
 	}
 
 	verbosef("notifying http watchers %v %v %v (%d bytes)...", req.Method, req.URL, resp.Status, resp.ContentLength)
 	notifyHTTP(&call)
+}
+
+func decodeContent(r io.Reader, encodings []string) ([]byte, error) {
+	var err error
+	for i := len(encodings) - 1; i >= 0; i-- {
+		switch strings.ToLower(encodings[i]) {
+		case "gzip":
+			log.Println("decoding gzip content")
+			r, err = gzip.NewReader(r)
+			if err != nil {
+				return nil, fmt.Errorf("error gzip-decoding: %w", err)
+			}
+		default:
+			return nil, fmt.Errorf("unsupported content encoding: %q", encodings[i])
+		}
+	}
+	return io.ReadAll(r)
 }

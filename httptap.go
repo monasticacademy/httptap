@@ -168,8 +168,14 @@ func Main() error {
 		NoOverlay          bool     `arg:"--no-overlay,env:HTTPTAP_NO_OVERLAY" help:"do not mount any overlay filesystems"`
 		Stack              string   `arg:"env:HTTPTAP_STACK" default:"gvisor" help:"'gvisor' or 'homegrown'"`
 		Dump               bool     `arg:"env:HTTPTAP_DUMP" help:"dump all packets sent and received"`
+		HTTPPorts          []int    `arg:"--http"`
+		HTTPSPorts         []int    `arg:"--https"`
+		Head               bool     `help:"whether to include HTTP headers in terminal output"`
+		Body               bool     `help:"whether to include HTTP payloads in terminal output"`
 		Command            []string `arg:"positional"`
 	}
+	args.HTTPPorts = []int{80}
+	args.HTTPSPorts = []int{443}
 	arg.MustParse(&args)
 
 	if len(args.Command) == 0 {
@@ -432,7 +438,55 @@ func Main() error {
 		verbosef("now in uid %d, gid %d", unix.Getuid(), unix.Getgid())
 	}
 
-	// start a web server if request
+	// start printing to standard output if requested
+	httpcalls, _ := listenHTTP()
+	go func() {
+		reqcolor := color.New(color.FgBlue, color.Bold)
+		resp2xx := color.New(color.FgGreen)
+		resp3xx := color.New(color.FgMagenta)
+		resp4xx := color.New(color.FgYellow)
+		resp5xx := color.New(color.FgRed)
+		for c := range httpcalls {
+			// log the request (do not do this earlier since reqbody may not be compete until now)
+			reqcolor.Printf("---> %v %v\n", c.Request.Method, c.Request.URL)
+			if args.Head {
+				for k, vs := range c.Request.Header {
+					for _, v := range vs {
+						log.Printf("> %s: %s", k, v)
+					}
+				}
+			}
+			if args.Body && len(c.Request.Body) > 0 {
+				log.Println(string(c.Request.Body))
+			}
+
+			// log the response
+			var respcolor *color.Color
+			switch {
+			case c.Response.StatusCode < 300:
+				respcolor = resp2xx
+			case c.Response.StatusCode < 400:
+				respcolor = resp3xx
+			case c.Response.StatusCode < 500:
+				respcolor = resp4xx
+			default:
+				respcolor = resp5xx
+			}
+			respcolor.Printf("<--- %v %v (%d bytes)\n", c.Response.StatusCode, c.Request.URL, len(c.Response.Body))
+			if args.Head {
+				for k, vs := range c.Response.Header {
+					for _, v := range vs {
+						log.Printf("< %s: %s", k, v)
+					}
+				}
+			}
+			if args.Body && len(c.Request.Body) > 0 {
+				log.Println(string(c.Response.Body))
+			}
+		}
+	}()
+
+	// start a web server if requested
 	if args.WebUI != "" {
 		// TODO: open listener first so that we can check that it works before proceeding
 		go func() {
@@ -552,12 +606,16 @@ func Main() error {
 	// go proxyUDP(udppstack.Listen("*"))
 
 	// intercept all TCP connections on port 443 and treat as HTTPS
-	mux.HandleTCP(":80", proxyHTTP)
+	for _, port := range args.HTTPPorts {
+		mux.HandleTCP(fmt.Sprintf(":%d", port), proxyHTTP)
+	}
 
 	// intercept all TCP connections on port 443 and treat as HTTPS
-	mux.HandleTCP(":443", func(conn net.Conn) {
-		proxyHTTPS(conn, ca)
-	})
+	for _, port := range args.HTTPSPorts {
+		mux.HandleTCP(fmt.Sprintf(":%d", port), func(conn net.Conn) {
+			proxyHTTPS(conn, ca)
+		})
+	}
 
 	// start listening for TCP connections and proxy each one to the world
 	mux.HandleTCP("*", func(conn net.Conn) {
