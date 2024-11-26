@@ -480,7 +480,7 @@ func Main() error {
 					}
 				}
 			}
-			if args.Body && len(c.Request.Body) > 0 {
+			if args.Body && len(c.Response.Body) > 0 {
 				log.Println(string(c.Response.Body))
 			}
 		}

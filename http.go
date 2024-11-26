@@ -261,8 +261,6 @@ func proxyHTTP(conn net.Conn) {
 	}
 	defer resp.Body.Close()
 
-	resp.Header.Set("x-httptap", req.Host)
-
 	// capture the response body into memory for later inspection
 	var respbody bytes.Buffer
 	resp.Body = TeeReadCloser(resp.Body, &respbody)
