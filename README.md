@@ -4,7 +4,6 @@
   httptap
   </br>
 </h1>
-<h4 align="center">Application HTTP request inspector</h4>
 <p align="center">
   <a href="https://pkg.go.dev/github.com/monasticacademy/httptap"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square" alt="Documentation"></a>
   <a href="https://github.com/monasticacademy/httptap/actions"><img src="https://github.com/monasticacademy/httptap/workflows/Test/badge.svg" alt="Build Status"></a>
@@ -27,21 +26,24 @@ httptap -- python -c "import requests; requests.get('https://monasticacademy.org
 <--- 200 https://www.monasticacademy.org/ (5796 bytes)
 ```
 
-If you can run `<command>` on your shell, you can likely also run `httptap -- <command>`. You do not need to be the root user. When you run httptap, it does not create iptables rules or make any other global changes to your system. The `httptap` executable is a static Go binary that runs without dependencies. You can install it with:
+Httptap runs the requested command in an isolated network namespace, injecting a certificate authority created on-the-fly in order to decrypt HTTPS traffic. If you can run `<command>` on your shell, you can likely also run `httptap -- <command>`. You do not need to be the root user, nor set up any kind of daemon, nor make any system-wide changes to your system. The `httptap` executable is a static Go binary that runs without dependencies. You can install it with:
 
 ```shell
 go install github.com/monasticacademy/httptap@latest
 ```
 
-It works by running the requested subprocess in a network namespace containing a TUN device that it uses to intercept and proxy all network traffic. In order to inspect the contents of TLS connections, it creates a certificate authority and injects it into environment variables passed to the subprocess.
-
-Httptap make extensive use of linux-specific system calls. It is unlikely to be ported to other operating systems.
-
-# Install from releases
+or download a pre-built release with:
 
 ```shell
 curl -L https://github.com/monasticacademy/httptap/releases/download/v0.0.3/httptap_Linux_x86_64.tar.gz | tar xzf -
-./httptap -- curl https://www.example.com
+```
+
+Httptap is linux-only. It makes extensive use of linux-specific system calls and is unlikely to be ported to other operating systems.
+
+# Install pre-built binary
+
+```shell
+curl -L https://github.com/monasticacademy/httptap/releases/download/v0.0.3/httptap_Linux_x86_64.tar.gz | tar xzf -
 ```
 
 For all versions and CPU architectures see the [releases page](https://github.com/monasticacademy/httptap/releases/).
@@ -50,7 +52,89 @@ For all versions and CPU architectures see the [releases page](https://github.co
 
 ```shell
 go install github.com/monasticacademy/httptap@latest
-./httptap -- curl https://www.example.com
+---> GET https://monasticacademy.org/
+<--- 308 https://monasticacademy.org/ (15 bytes)
+```
+
+# Quickstart
+
+Let's run a simple test:
+
+```shell
+httptap -- curl -s https://buddhismforai.sutra.co -o /dev/null
+---> GET https://buddhismforai.sutra.co/
+<--- 302 https://buddhismforai.sutra.co/ (117 bytes)
+```
+
+Let's see how it changes if we tell curl to follow redirects:
+
+```shell
+httptap -- curl -sL https://buddhismforai.sutra.co -o /dev/null
+---> GET https://buddhismforai.sutra.co/
+<--- 302 https://buddhismforai.sutra.co/ (117 bytes)
+---> GET https://buddhismforai.sutra.co/space/cbodvy/content
+<--- 200 https://buddhismforai.sutra.co/space/cbodvy/content (6377 bytes)
+```
+
+Let's see what HTTP endpoints the Google Cloud command line interface uses to list compute resources (this requires that you have gcloud installed and are signed in):
+
+```shell
+$ httptap gcloud compute instances list
+---> POST https://oauth2.googleapis.com/token
+<--- 200 https://oauth2.googleapis.com/token (997 bytes)
+---> GET https://compute.googleapis.com/compute/v1/projects/maple-public-website/aggregated/instances?alt=json&includeAllScopes=True&maxResults=500&returnPartialSuccess=True
+<--- 200 https://compute.googleapis.com/compute/v1/projects/maple-public-website/aggregated/instances?alt=json&includeAllScopes=True&maxResults=500&returnPartialSuccess=True (19921 bytes)
+NAME       ZONE        MACHINE_TYPE  PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP     STATUS
+<your cloud instances listed here>
+```
+
+Let's see what HTTP endpoints kubectl uses in a "get all" (this requires that you have kubectl installed and are authenticated to a cluster):
+
+```shell
+$ go run . --https 443 6443 -- kubectl get all --insecure-skip-tls-verify
+---> GET https://129.159.112.196:6443/api/v1/namespaces/default/pods?limit=500
+<--- 200 https://129.159.112.196:6443/api/v1/namespaces/default/pods?limit=500 (38345 bytes)
+---> GET https://129.159.112.196:6443/api/v1/namespaces/default/replicationcontrollers?limit=500
+<--- 200 https://129.159.112.196:6443/api/v1/namespaces/default/replicationcontrollers?limit=500 (2509 bytes)
+---> GET https://129.159.112.196:6443/api/v1/namespaces/default/services?limit=500
+<--- 200 https://129.159.112.196:6443/api/v1/namespaces/default/services?limit=500 (5586 bytes)
+---> GET https://129.159.112.196:6443/apis/apps/v1/namespaces/default/daemonsets?limit=500
+<--- 200 https://129.159.112.196:6443/apis/apps/v1/namespaces/default/daemonsets?limit=500 (3052 bytes)
+---> GET https://129.159.112.196:6443/apis/apps/v1/namespaces/default/deployments?limit=500
+<--- 200 https://129.159.112.196:6443/apis/apps/v1/namespaces/default/deployments?limit=500 (7438 bytes)
+---> GET https://129.159.112.196:6443/apis/apps/v1/namespaces/default/replicasets?limit=500
+<--- 200 https://129.159.112.196:6443/apis/apps/v1/namespaces/default/replicasets?limit=500 (47211 bytes)
+---> GET https://129.159.112.196:6443/apis/apps/v1/namespaces/default/statefulsets?limit=500
+<--- 200 https://129.159.112.196:6443/apis/apps/v1/namespaces/default/statefulsets?limit=500 (1416 bytes)
+---> GET https://129.159.112.196:6443/apis/autoscaling/v2/namespaces/default/horizontalpodautoscalers?limit=500
+<--- 200 https://129.159.112.196:6443/apis/autoscaling/v2/namespaces/default/horizontalpodautoscalers?limit=500 (2668 bytes)
+---> GET https://129.159.112.196:6443/apis/batch/v1/namespaces/default/cronjobs?limit=500
+<--- 200 https://129.159.112.196:6443/apis/batch/v1/namespaces/default/cronjobs?limit=500 (3134 bytes)
+---> GET https://129.159.112.196:6443/apis/batch/v1/namespaces/default/jobs?limit=500
+<--- 200 https://129.159.112.196:6443/apis/batch/v1/namespaces/default/jobs?limit=500 (2052 bytes)
+<kubectl output will be here>
+```
+
+In the above, `--insecure-skip-tls-verify` is necessary because kubectl doesn't use the httptap-generated certificate authority, and `--https 443 6443` says to treat TCP connections on ports 443 and 6443 as HTTPS connections, which is needed because my cluter's API endpoint uses port 6443.
+
+Let's see how DNS-over-HTTP affects things:
+
+```shell
+$ $ httptap -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://buddhismforai.sutra.co -o /dev/null
+---> POST https://cloudflare-dns.com/dns-query
+<--- 200 https://cloudflare-dns.com/dns-query (149 bytes)
+---> POST https://cloudflare-dns.com/dns-query
+<--- 200 https://cloudflare-dns.com/dns-query (150 bytes)
+---> GET https://buddhismforai.sutra.co/
+<--- 302 https://buddhismforai.sutra.co/ (117 bytes)
+---> GET https://buddhismforai.sutra.co/space/cbodvy/content
+<--- 200 https://buddhismforai.sutra.co/space/cbodvy/content (6377 bytes)
+```
+
+Let's see how the DNS-over-HTTP payloads look:
+
+```shell
+TODO
 ```
 
 # How it works
