@@ -4,9 +4,6 @@ To discover where the widely used python package certifi reads its certificates 
     python -m certifi
 
 
-
-
-
 Print the available filesystem types:
 
     cat /proc/filesystems
@@ -126,7 +123,7 @@ OK so to do it with veth pairs the steps are:
     - in the namespace, bring the device up                             nsenter --net=/run/netns/httptap-ns ip link set httptap-ceth up
     - setup NAT                                                         iptables -t nat -A POSTROUTING -s 10.1.2.0/24 ! -o httptap-veth -j MASQUERADE
 
-    - in the namespace, ping 8.8.8.8                                    
+    - in the namespace, ping 8.8.8.8
 
 Doing it with bridges to allow multiple namespaces to coexist on the same network is more complex. You basically have to:
 
@@ -134,7 +131,7 @@ Doing it with bridges to allow multiple namespaces to coexist on the same networ
     - activate bridge                               ip link set br0 up
     - assign the interface to the bridge            ip link set veth0 master br0
     - give the bridge an IP address                 ip addr add 172.18.0.1/16 dev br0
- 
+
 In his example he gave the following addresses:
 
     For the outer part of the veth pair:        ip addr add 172.18.0.11/16 dev veth0
@@ -162,3 +159,48 @@ Check whether IP forwarding is on:
     sysctl net.ipv4.ip_forward
 
 In the end I did not get a veth pair to work correctly with iptables masquerade
+
+
+# Sentry
+
+gvisor sentry
+
+This function execs /proc/self/exe with the boot subcommand, in a set of namespaces:
+
+// createSandboxProcess starts the sandbox as a subprocess by running the "boot"
+// command, passing in the bundle dir.
+func (s *Sandbox) createSandboxProcess(conf *config.Config, args *Args, startSyncFile *os.File) error {
+
+So look at the boot subcommand of runsc...
+
+In the end, there is a call in runsc/boot/loader.go that starts a process like this:
+
+	tg, _, err := l.k.CreateProcess(info.procArgs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating process: %w", err)
+	}
+
+This in turn calls into pkg/sentry/kernel/kernel.go CreateProcess:
+
+    // CreateProcess creates a new task in a new thread group with the given
+    // options. The new task has no parent and is in the root PID namespace.
+    //
+    // If k.Start() has already been called, then the created process must be
+    // started by calling kernel.StartProcess(tg).
+    //
+    // If k.Start() has not yet been called, then the created task will begin
+    // running when k.Start() is called.
+    //
+    // CreateProcess has no analogue in Linux; it is used to create the initial
+    // application task, as well as processes started by the control server.
+    func (k *Kernel) CreateProcess(args CreateProcessArgs) (*ThreadGroup, ThreadID, error) {
+
+The core work step in a task is this:
+
+func (app *runApp) execute(t *Task) taskRunState {
+    	...
+		for _, work := range queue {
+			work.TaskWork(t)
+		}
+
+In the above, queue is a []TaskWorker
