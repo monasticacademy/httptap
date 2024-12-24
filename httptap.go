@@ -37,6 +37,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
@@ -617,7 +618,7 @@ func Main() error {
 		})
 	}
 
-	// start listening for TCP connections and proxy each one to the world
+	// listen for TCP connections and proxy each one to the world
 	mux.HandleTCP("*", func(conn net.Conn) {
 		proxyTCP(conn)
 	})
@@ -632,7 +633,7 @@ func Main() error {
 		// create the stack with udp and tcp protocols
 		s := stack.New(stack.Options{
 			NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol, ipv6.NewProtocol},
-			TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
+			TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4},
 		})
 
 		// get maximum transmission unit for the tun device
@@ -660,20 +661,7 @@ func Main() error {
 				r.ID().LocalAddress, r.ID().LocalPort)
 
 			// send a SYN+ACK in response to the SYN
-			var wq waiter.Queue
-			ep, err := r.CreateEndpoint(&wq)
-			if err != nil {
-				errorf("error accepting connection: %v", err)
-				r.Complete(true)
-				return
-			}
-			defer r.Complete(false)
-
-			// TODO: set keepalive count, keepalive interval, receive buffer size, send buffer size, like this:
-			//   https://github.com/xjasonlyu/tun2socks/blob/main/core/tcp.go#L83
-
-			// create an adapter that makes an adapter into a net.Conn
-			mux.notifyTCP(gonet.NewTCPConn(&wq, ep))
+			go mux.notifyTCP(&tcpRequest{r, new(waiter.Queue)})
 		})
 
 		// TODO: this UDP forwarder sometimes only ever processes one UDP packet, other times it keeps going... :/
@@ -699,8 +687,7 @@ func Main() error {
 			// create a convenience adapter so that we can read and write using a net.Conn
 			conn := gonet.NewUDPConn(&wq, ep)
 
-			// so far as I can tell, we must read packets in a new goroutine or else packets on other connections
-			// will never be processed
+			// we must read packets in a new goroutine and return control back to netstack
 			go func() {
 				defer conn.Close()
 
@@ -725,8 +712,6 @@ func Main() error {
 						conn.LocalAddr(),
 						buf[:n],
 					})
-
-					verbose("mux returned, reading next packet...")
 				}
 			}()
 		})

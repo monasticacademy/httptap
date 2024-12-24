@@ -20,12 +20,22 @@ func patternMatches(pattern string, addr net.Addr) bool {
 // mux dispatches network connections to listeners according to patterns
 type mux struct {
 	mu          sync.Mutex
-	tcpHandlers []*tcpListener
+	tcpHandlers []*tcpMuxEntry
 	udpHandlers []*udpMuxEntry
 }
 
 // tcpHandlerFunc is a function that receives TCP connections
-type tcpHandlerFunc func(conn net.Conn)
+type tcpHandlerFunc func(net.Conn)
+
+// tcpHandlerFunc is a function that receives TCP connection requests and can choose
+// whether to accept or reject them.
+type tcpRequestHandlerFunc func(TCPRequest)
+
+// tcpMuxEntry is a pattern and corresponding handler, for use in the mux table for the tcp stack
+type tcpMuxEntry struct {
+	pattern string
+	handler tcpRequestHandlerFunc
+}
 
 // udpHandlerFunc is a function that receives UDP packets. Each call to w.Write
 // will send a UDP packet back to the subprocess that looks as if it comes from
@@ -53,11 +63,17 @@ func (s *mux) ListenTCP(pattern string) net.Listener {
 	defer s.mu.Unlock()
 
 	listener := tcpListener{pattern: pattern, connections: make(chan net.Conn, 64)}
-	s.tcpHandlers = append(s.tcpHandlers, &listener)
+	s.HandleTCPRequest(pattern, func(r TCPRequest) {
+		conn, err := r.Accept()
+		if err != nil {
+			return
+		}
+		listener.connections <- conn
+	})
 	return &listener
 }
 
-// HandleTCP calls the handler each time a new connection is intercepted mattching the
+// HandleTCP register a handler to be called each time a new connection is intercepted matching the
 // given filter pattern.
 //
 // Pattern can a hostname, a :port, a hostname:port, or "*" for everything". For example:
@@ -66,19 +82,30 @@ func (s *mux) ListenTCP(pattern string) net.Listener {
 //   - ":80"
 //   - "*"
 func (s *mux) HandleTCP(pattern string, handler tcpHandlerFunc) {
-	l := s.ListenTCP(pattern)
-	go func() {
-		defer l.Close()
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				verbosef("accept returned errror: %v, exiting HandleFunc(%v)", err, pattern)
-				return
-			}
-
-			go handler(conn)
+	s.HandleTCPRequest(pattern, func(r TCPRequest) {
+		conn, err := r.Accept()
+		if err != nil {
+			errorf("error accepting connection: %v", err)
+			return
 		}
-	}()
+		handler(conn)
+	})
+}
+
+// HandleTCPRequest register a handler to be called each time a new connection is intercepted matching the
+// given filter pattern. Unlike HandleTCP, the handler can control whether the connection is accepted or
+// rejected, which means replying with a SYN+ACK or SYN+RST respectively.
+//
+// Pattern can a hostname, a :port, a hostname:port, or "*" for everything". For example:
+//   - "example.com"
+//   - "example.com:80"
+//   - ":80"
+//   - "*"
+func (s *mux) HandleTCPRequest(pattern string, handler tcpRequestHandlerFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.tcpHandlers = append(s.tcpHandlers, &tcpMuxEntry{pattern: pattern, handler: handler})
 }
 
 // HandleUDP registers a handler for UDP packets according to destination IP and/or por
@@ -98,20 +125,20 @@ func (s *mux) HandleUDP(pattern string, handler udpHandlerFunc) {
 	s.udpHandlers = append(s.udpHandlers, &udpMuxEntry{pattern: pattern, handler: handler})
 }
 
-// notifyListeners is called when a new stream is created. It finds the first listener
+// notifyTCP is called when a new stream is created. It finds the first listener
 // that will accept the given stream. It never blocks.
-func (s *mux) notifyTCP(stream net.Conn) {
+func (s *mux) notifyTCP(req TCPRequest) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, listener := range s.tcpHandlers {
-		if patternMatches(listener.pattern, stream.LocalAddr()) {
-			listener.connections <- stream
+	for _, entry := range s.tcpHandlers {
+		if patternMatches(entry.pattern, req.LocalAddr()) {
+			go entry.handler(req)
 			return
 		}
 	}
 
-	verbosef("nobody listening for tcp to %v, dropping", stream.LocalAddr())
+	verbosef("nobody listening for tcp to %v, dropping", req.LocalAddr())
 }
 
 // notifyUDP is called when a new packet arrives. It finds the first handler
@@ -139,10 +166,10 @@ type udpResponder interface {
 // tcpListener implements net.Listener for connections dispatched by a mux
 type tcpListener struct {
 	pattern     string
-	connections chan net.Conn // the tcpStack sends streams here when they are created and they match the pattern above
+	connections chan net.Conn
 }
 
-// Accept accepts an intercepted connection. Later this will implement net.Listener.Accept
+// Accept accepts an intercepted connection. This implements net.Listener.Accept
 func (l *tcpListener) Accept() (net.Conn, error) {
 	stream := <-l.connections
 	if stream == nil {
