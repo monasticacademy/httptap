@@ -719,6 +719,14 @@ func Main() error {
 		// register the forwarders with the stack
 		s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 		s.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
+		s.SetTransportProtocolHandler(icmp.ProtocolNumber4, func(id stack.TransportEndpointID, pb *stack.PacketBuffer) bool {
+			verbosef("got icmp packet %v => %v", id.RemoteAddress, id.LocalAddress)
+			return true // this means the packet was handled and no error handler needs to be invoked
+		})
+		s.SetTransportProtocolHandler(icmp.ProtocolNumber6, func(id stack.TransportEndpointID, pb *stack.PacketBuffer) bool {
+			verbosef("got icmp6 packet %v => %v", id.RemoteAddress, id.LocalAddress)
+			return true // this means the packet was handled and no error handler needs to be invoked
+		})
 
 		// create the network interface -- tun2socks says this must happen *after* registering the TCP forwarder
 		nic := s.NextNICID()
