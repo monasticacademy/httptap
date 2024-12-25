@@ -52,8 +52,6 @@ For all versions and CPU architectures see the [releases page](https://github.co
 
 ```shell
 go install github.com/monasticacademy/httptap@latest
----> GET https://monasticacademy.org/
-<--- 308 https://monasticacademy.org/ (15 bytes)
 ```
 
 # Quickstart
@@ -66,7 +64,7 @@ httptap -- curl -s https://buddhismforai.sutra.co -o /dev/null
 <--- 302 https://buddhismforai.sutra.co/ (117 bytes)
 ```
 
-Let's see how it changes if we tell curl to follow redirects:
+What happened here is that we ran `curl -s https://buddhismforai.sutra.co -o /dev/null` and it received a 302 redirect from the server. `httptap` printed summaries of the HTTP requests and their responses. Let's see how it changes if we tell curl to follow redirects by adding `-L`:
 
 ```shell
 httptap -- curl -sL https://buddhismforai.sutra.co -o /dev/null
@@ -75,6 +73,8 @@ httptap -- curl -sL https://buddhismforai.sutra.co -o /dev/null
 ---> GET https://buddhismforai.sutra.co/space/cbodvy/content
 <--- 200 https://buddhismforai.sutra.co/space/cbodvy/content (6377 bytes)
 ```
+
+Now we can see that after receiving the 302 redirect, curl made an additional HTTP request to the URL to which it was redirected, which is what you expect when using `-L` with curl.
 
 Let's see what HTTP endpoints the Google Cloud command line interface uses to list compute resources (this requires that you have gcloud installed and are signed in):
 
@@ -88,39 +88,41 @@ NAME       ZONE        MACHINE_TYPE  PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP     S
 <your cloud instances listed here>
 ```
 
+What happened here is that we ran `gcloud compute instances list`, which lists the compute instances that the signed-in user has on Google Cloud. The bottom two lines of output were printed by `gcloud`; the rest were printed by `httptap` and show what HTTP requests `gcloud` used to get the information it printed.
+
 Let's see what HTTP endpoints kubectl uses in a "get all" (this requires that you have kubectl installed and are authenticated to a cluster):
 
 ```shell
-$ go run . --https 443 6443 -- kubectl get all --insecure-skip-tls-verify
----> GET https://129.159.112.196:6443/api/v1/namespaces/default/pods?limit=500
-<--- 200 https://129.159.112.196:6443/api/v1/namespaces/default/pods?limit=500 (38345 bytes)
----> GET https://129.159.112.196:6443/api/v1/namespaces/default/replicationcontrollers?limit=500
-<--- 200 https://129.159.112.196:6443/api/v1/namespaces/default/replicationcontrollers?limit=500 (2509 bytes)
----> GET https://129.159.112.196:6443/api/v1/namespaces/default/services?limit=500
-<--- 200 https://129.159.112.196:6443/api/v1/namespaces/default/services?limit=500 (5586 bytes)
----> GET https://129.159.112.196:6443/apis/apps/v1/namespaces/default/daemonsets?limit=500
-<--- 200 https://129.159.112.196:6443/apis/apps/v1/namespaces/default/daemonsets?limit=500 (3052 bytes)
----> GET https://129.159.112.196:6443/apis/apps/v1/namespaces/default/deployments?limit=500
-<--- 200 https://129.159.112.196:6443/apis/apps/v1/namespaces/default/deployments?limit=500 (7438 bytes)
----> GET https://129.159.112.196:6443/apis/apps/v1/namespaces/default/replicasets?limit=500
-<--- 200 https://129.159.112.196:6443/apis/apps/v1/namespaces/default/replicasets?limit=500 (47211 bytes)
----> GET https://129.159.112.196:6443/apis/apps/v1/namespaces/default/statefulsets?limit=500
-<--- 200 https://129.159.112.196:6443/apis/apps/v1/namespaces/default/statefulsets?limit=500 (1416 bytes)
----> GET https://129.159.112.196:6443/apis/autoscaling/v2/namespaces/default/horizontalpodautoscalers?limit=500
-<--- 200 https://129.159.112.196:6443/apis/autoscaling/v2/namespaces/default/horizontalpodautoscalers?limit=500 (2668 bytes)
----> GET https://129.159.112.196:6443/apis/batch/v1/namespaces/default/cronjobs?limit=500
-<--- 200 https://129.159.112.196:6443/apis/batch/v1/namespaces/default/cronjobs?limit=500 (3134 bytes)
----> GET https://129.159.112.196:6443/apis/batch/v1/namespaces/default/jobs?limit=500
-<--- 200 https://129.159.112.196:6443/apis/batch/v1/namespaces/default/jobs?limit=500 (2052 bytes)
+$ httptap --https 443 6443 -- kubectl get all --insecure-skip-tls-verify
+---> GET https://cluster:6443/api/v1/namespaces/default/pods?limit=500
+<--- 200 https://cluster:6443/api/v1/namespaces/default/pods?limit=500 (38345 bytes)
+---> GET https://cluster:6443/api/v1/namespaces/default/replicationcontrollers?limit=500
+<--- 200 https://cluster:6443/api/v1/namespaces/default/replicationcontrollers?limit=500 (2509 bytes)
+---> GET https://cluster:6443/api/v1/namespaces/default/services?limit=500
+<--- 200 https://cluster:6443/api/v1/namespaces/default/services?limit=500 (5586 bytes)
+---> GET https://cluster:6443/apis/apps/v1/namespaces/default/daemonsets?limit=500
+<--- 200 https://cluster:6443/apis/apps/v1/namespaces/default/daemonsets?limit=500 (3052 bytes)
+---> GET https://cluster:6443/apis/apps/v1/namespaces/default/deployments?limit=500
+<--- 200 https://cluster:6443/apis/apps/v1/namespaces/default/deployments?limit=500 (7438 bytes)
+---> GET https://cluster:6443/apis/apps/v1/namespaces/default/replicasets?limit=500
+<--- 200 https://cluster:6443/apis/apps/v1/namespaces/default/replicasets?limit=500 (47211 bytes)
+---> GET https://cluster:6443/apis/apps/v1/namespaces/default/statefulsets?limit=500
+<--- 200 https://cluster:6443/apis/apps/v1/namespaces/default/statefulsets?limit=500 (1416 bytes)
+---> GET https://cluster:6443/apis/autoscaling/v2/namespaces/default/horizontalpodautoscalers?limit=500
+<--- 200 https://cluster:6443/apis/autoscaling/v2/namespaces/default/horizontalpodautoscalers?limit=500 (2668 bytes)
+---> GET https://cluster:6443/apis/batch/v1/namespaces/default/cronjobs?limit=500
+<--- 200 https://cluster:6443/apis/batch/v1/namespaces/default/cronjobs?limit=500 (3134 bytes)
+---> GET https://cluster:6443/apis/batch/v1/namespaces/default/jobs?limit=500
+<--- 200 https://cluster:6443/apis/batch/v1/namespaces/default/jobs?limit=500 (2052 bytes)
 <kubectl output will be here>
 ```
 
 In the above, `--insecure-skip-tls-verify` is necessary because kubectl doesn't use the httptap-generated certificate authority, and `--https 443 6443` says to treat TCP connections on ports 443 and 6443 as HTTPS connections, which is needed because my cluter's API endpoint uses port 6443.
 
-Let's see how DNS-over-HTTP affects things:
+Let's see how DNS-over-HTTP works:
 
 ```shell
-$ $ httptap -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://buddhismforai.sutra.co -o /dev/null
+$ httptap -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://buddhismforai.sutra.co -o /dev/null
 ---> POST https://cloudflare-dns.com/dns-query
 <--- 200 https://cloudflare-dns.com/dns-query (149 bytes)
 ---> POST https://cloudflare-dns.com/dns-query
@@ -131,11 +133,31 @@ $ $ httptap -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://b
 <--- 200 https://buddhismforai.sutra.co/space/cbodvy/content (6377 bytes)
 ```
 
+What happened here is that we told `curl` to request the url "https://buddhismforai.sutra.co", using the cloudflare DNS-over-HTTP service for DNS queries. In the output we see that `curl` made 4 HTTP requests in total; the first two were DNS lookups, and then the second two were the HTTP requests for buddhismforai.sutra.co, making use of the IP addresses obtained in the DNS queries.
+
 Let's see how the DNS-over-HTTP payloads look:
 
 ```shell
-TODO
+$ httptap --head --body -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://buddhismforai.sutra.co -o /dev/null
+---> POST https://cloudflare-dns.com/dns-query
+> Accept: */*
+> Content-Type: application/dns-message
+> Content-Length: 40
+buddhismforaisutraco
+<--- 200 https://cloudflare-dns.com/dns-query (149 bytes)
+< Alt-Svc: h3=":443"; ma=86400
+< Server: cloudflare
+< Date: Tue, 24 Dec 2024 18:13:12 GMT
+< Content-Type: application/dns-message
+< Access-Control-Allow-Origin: *
+< Content-Length: 149
+< Cf-Ray: 8f7290631e334211-EWR
+buddhismforaisutraco�
+��w�4+#G�.           <wildcardsutraco	herokudnscom�4+!�=�4+
+...
 ```
+
+Here the `--head` option tells httptap to print the HTTP headers, and `--body` tells it to print the raw HTTP payloads. To keep it short I'm showing just the first request/response pair above.
 
 # How it works
 
