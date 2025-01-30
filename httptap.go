@@ -382,7 +382,7 @@ func Main() error {
 			for {
 				n, _, err := conn.ReadFrom(buf)
 				if err != nil {
-					log.Printf("error reading raw packet: %w, aborting dump", err)
+					log.Printf("error reading raw packet: %v, aborting dump", err)
 					return
 				}
 
@@ -697,7 +697,7 @@ func Main() error {
 					buf := make([]byte, mtu)
 					n, _, err := conn.ReadFrom(buf)
 					if err == net.ErrClosed {
-						verbosef("UDP connection closed, exiting the read loop", n)
+						verbose("UDP connection closed, exiting the read loop")
 						break
 					}
 					if err != nil {
