@@ -21,4 +21,4 @@ jobs:
           go-version: stable
 
       - name: Run
-        run: scripts/test.sh
+        run: go test
