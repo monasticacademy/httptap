@@ -181,6 +181,18 @@ When a client makes an HTTPS request, it asks the server for evidence that it is
 
 When httptap starts, it creates a certificate authority (actually a private key plus a corresponding x509 certificate), writes it to a file on the filesystem visible only to the subprocess, and sets a few environment variables -- again only visible to the subprocess being run -- that add this certificate authority to the list of trusted certificate authorities. Since the subprocess trusts this certificate authority, and httptap holds the private key for the certificate authority, it can prove to the subprocess that it is the server which which the subprocess was trying to communicate. In this way we can read the plaintext HTTP requests.
 
+# How it was made
+
+Httptap is part of an experiment in developing technology in the context of Buddhist monasticism. It was developed at the [Monastic Academy](https://www.monasticacademy.org) in Vermont in the US. We believe that a monastic schedule, and the practice of the Buddhist spiritual path more generally, provide ideal conditions for technological development. The way we have set things up is that we live and practice together on a bit over a hundred acres of land. In the mornings and evenings we chant and meditate together, and for about one week out of every month we run and participate in a meditation retreat. The rest of the time we work together on everything from caring for the land, maintaining the buildings, cooking, cleaning, planning, fundraising, and for the past few years developing software together. This project is a demonstration of what is possible on the software side, but of course to see the full product of our work you should come visit us.
+
+If you're interested, we run an [AI fellowship program](https://www.monasticacademy.org/ai-fellowship), which is a funded month-to-month program where you live on the land, participate in the schedule, and do your own work during the day. We also have a 3-month [monastic training program](https://www.monasticacademy.org/train), which can lead into our long-term residential training.
+
+For the past few years we have been recording a lecture series called [Buddhism for AI](https://buddhismforai.sutra.co). It's about our efforts to design a religion (yes, a religion) based on Buddhism for consumption directly by AI systems. We actually feel this is very important work given the world situation.
+
+Finally, our head teacher [Soryu Forall](https://www.monasticacademy.org/teacher) published a book a few years back called [Buddhism For All](https://buddhism.net/buddhism-for-all-book/). We're working on a sequel at the moment.
+
+![MAPLE Group Photo](docs/group.jpg)
+
 # Caveats
 
 - The process cannot listen for incoming network connections
