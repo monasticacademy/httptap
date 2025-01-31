@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="./.github/banner.webp" alt="httptap" height="450px">
+  <img src="./docs/readme-header.jpg" alt="Monastic Academy" height="450px">
   <br>
   httptap
   </br>
