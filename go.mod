@@ -7,6 +7,8 @@ require (
 	github.com/fatih/color v1.17.0
 	github.com/google/gopacket v1.1.19
 	github.com/joemiller/certin v0.3.5
+	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
+	golang.org/x/tools v0.22.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
@@ -19,7 +21,6 @@ require (
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
 )
 
 require (

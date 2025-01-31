@@ -83,6 +83,11 @@ test-with-js: clean
 test-with-self: clean
 	go run . go run . curl https://www.example.com
 
+# Test HAR output
+
+test-with-har:
+	go run . --dump-har out.har -- curl -Lso /dev/null https://monasticacademy.org
+
 # These tests are currently broken
 
 broken-test-with-nonroot-user: clean

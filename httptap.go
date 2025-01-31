@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/alexflint/go-arg"
 	"github.com/fatih/color"
@@ -24,6 +26,7 @@ import (
 	"github.com/joemiller/certin"
 	"github.com/mdlayher/packet"
 	"github.com/monasticacademy/httptap/pkg/certfile"
+	"github.com/monasticacademy/httptap/pkg/harlog"
 	"github.com/monasticacademy/httptap/pkg/opensslpaths"
 	"github.com/monasticacademy/httptap/pkg/overlay"
 	"github.com/songgao/water"
@@ -160,17 +163,18 @@ func Main() error {
 	var args struct {
 		Verbose            bool     `arg:"-v,--verbose,env:HTTPTAP_VERBOSE"`
 		NoNewUserNamespace bool     `arg:"--no-new-user-namespace,env:HTTPTAP_NO_NEW_USER_NAMESPACE" help:"do not create a new user namespace (must be run as root)"`
-		Stderr             bool     `arg:"env:HTTPTAP_LOG_TO_STDERR" help:"log to stderr (default is stdout)"`
-		Tun                string   `default:"httptap" help:"name of the network device to create"`
+		Stderr             bool     `arg:"env:HTTPTAP_LOG_TO_STDERR" help:"log to standard error (default is standard out)"`
+		Tun                string   `default:"httptap" help:"name of the TUN device that will be created"`
 		Subnet             string   `default:"10.1.1.100/24" help:"IP address of the network interface that the subprocess will see"`
 		Gateway            string   `default:"10.1.1.1" help:"IP address of the gateway that intercepts and proxies network packets"`
 		WebUI              string   `arg:"env:HTTPTAP_WEB_UI" help:"address and port to serve API on"`
 		User               string   `help:"run command as this user (username or id)"`
 		NoOverlay          bool     `arg:"--no-overlay,env:HTTPTAP_NO_OVERLAY" help:"do not mount any overlay filesystems"`
-		Stack              string   `arg:"env:HTTPTAP_STACK" default:"gvisor" help:"'gvisor' or 'homegrown'"`
-		Dump               bool     `arg:"env:HTTPTAP_DUMP" help:"dump all packets sent and received"`
-		HTTPPorts          []int    `arg:"--http"`
-		HTTPSPorts         []int    `arg:"--https"`
+		Stack              string   `arg:"env:HTTPTAP_STACK" default:"gvisor" help:"which tcp implementation to use: 'gvisor' or 'homegrown'"`
+		DumpTCP            bool     `arg:"--dump-tcp,env:HTTPTAP_DUMP_TCP" help:"dump all TCP packets sent and received to standard out"`
+		DumpHAR            string   `arg:"--dump-har,env:HTTPTAP_DUMP_HAR" help:"path to dump HAR capture to"`
+		HTTPPorts          []int    `arg:"--http" help:"list of TCP ports to intercept HTTPS traffic on"`
+		HTTPSPorts         []int    `arg:"--https" help:"list of TCP ports to intercept HTTP traffic on"`
 		Head               bool     `help:"whether to include HTTP headers in terminal output"`
 		Body               bool     `help:"whether to include HTTP payloads in terminal output"`
 		Command            []string `arg:"positional"`
@@ -193,15 +197,16 @@ func Main() error {
 		verbosef("re-execing in a new user namespace...")
 
 		// Here we move to a new user namespace, which is an unpriveleged operation, and which
-		// allows us to do everything else we need to do in unpriveleged mode.
+		// allows us to do everything else without being root.
 		//
 		// In a C program, we could run unshare(CLONE_NEWUSER) and directly be in a new user
 		// namespace. In a Go program that is not possible because all Go programs are multithreaded
 		// (even with GOMAXPROCS=1), and unshare(CLONE_NEWUSER) is only available to single-threaded
 		// programs.
 		//
-		// Our best option is then to launch ourselves in a subprocess that is in a new user namespace,
-		// using /proc/self/exe, which contains the executable code for the current process.
+		// Our best option is to launch ourselves in a subprocess that is in a new user namespace,
+		// using /proc/self/exe, which contains the executable code for the current process. This
+		// is the same approach taken by docker's reexec package.
 
 		cmd := exec.Command("/proc/self/exe")
 		cmd.Args = append([]string{"/proc/self/exe"}, os.Args[1:]...)
@@ -354,7 +359,7 @@ func Main() error {
 	}
 
 	// if --dump was provided then start watching everything
-	if args.Dump {
+	if args.DumpTCP {
 		iface, err := net.InterfaceByName(args.Tun)
 		if err != nil {
 			return err
@@ -587,38 +592,72 @@ func Main() error {
 		handleDNS(context.Background(), w, p.payload)
 	})
 
-	// set up a test TCP interceptor
-	mux.HandleTCP(":11223", func(conn net.Conn) {
-		fmt.Fprint(conn, "hello 11223\n")
-		conn.Close()
-	})
-
-	// set up a test UDP interceptor
-	mux.HandleUDP(":11223", func(w udpResponder, p *udpPacket) {
-		verbosef("got udp packet: %q, replying", string(p.payload))
-		_, err = w.Write([]byte("hello udp 11223!\n"))
-		if err != nil {
-			errorf("error writing udp packet back to sender: %v", err)
-			return
-		}
-	})
-
-	// TODO: proxy all other UDP packets to the public internet
-	// go proxyUDP(udppstack.Listen("*"))
-
-	// intercept all TCP connections on port 443 and treat as HTTPS
-	for _, port := range args.HTTPPorts {
-		mux.HandleTCP(fmt.Sprintf(":%d", port), proxyHTTP)
+	// create the transport that will proxy intercepted connections out to the world
+	var roundTripper http.RoundTripper = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			if network != "tcp" {
+				return nil, fmt.Errorf("network %q was requested of dialer pinned to tcp", network)
+			}
+			dialTo, ok := ctx.Value(dialToContextKey).(string)
+			if !ok {
+				return nil, fmt.Errorf("context on proxied request was missing dialTo key")
+			}
+			verbosef("pinned dialer ignoring %q and dialing %v", address, dialTo)
+			return net.Dial("tcp", dialTo)
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          5,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
 
-	// intercept all TCP connections on port 443 and treat as HTTPS
-	for _, port := range args.HTTPSPorts {
+	// set up middlewares for HAR file logging if requested
+	if args.DumpHAR != "" {
+		// open the file right away so that filesystem errors get surfaced as soon as possible
+		f, err := os.Create(args.DumpHAR)
+		if err != nil {
+			log.Printf("error opening HAR file for writing: %w", err)
+		}
+		defer f.Close()
+
+		// add the HAR middleware
+		harlogger := harlog.Transport{
+			Transport: roundTripper,
+			UnusualError: func(err error) error {
+				verbosef("error in HAR log capture: %v, ignoring", err)
+				return nil
+			},
+		}
+
+		roundTripper = &harlogger
+
+		// write the HAR log at program termination
+		defer func() {
+			err := json.NewEncoder(f).Encode(harlogger.HAR())
+			if err != nil {
+				verbosef("error serializing HAR output: %v, ignoring", err)
+			}
+		}()
+	}
+
+	// intercept TCP connections on requested HTTP ports and treat as HTTP
+	for _, port := range args.HTTPPorts {
 		mux.HandleTCP(fmt.Sprintf(":%d", port), func(conn net.Conn) {
-			proxyHTTPS(conn, ca)
+			proxyHTTP(roundTripper, conn)
 		})
 	}
 
-	// listen for TCP connections and proxy each one to the world
+	// intercept TCP connections on requested HTTPS ports and treat as HTTPS
+	for _, port := range args.HTTPSPorts {
+		mux.HandleTCP(fmt.Sprintf(":%d", port), func(conn net.Conn) {
+			proxyHTTPS(roundTripper, conn, ca)
+		})
+	}
+
+	// listen for other TCP connections and proxy to the world
 	mux.HandleTCP("*", func(conn net.Conn) {
 		proxyTCP(conn)
 	})
