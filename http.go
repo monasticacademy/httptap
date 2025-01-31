@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/joemiller/certin"
 )
@@ -140,9 +139,8 @@ func ipFromAddr(addr net.Addr) net.IP {
 	}
 }
 
-// listen for incomming connections on l and proxy each one to the outside world, while sending
-// information about the request/response pairs to all HTTP listeners
-func proxyHTTPS(conn net.Conn, root *certin.KeyAndCert) {
+// service an incoming HTTPS connection on conn by sending a request out to the world through dst.
+func proxyHTTPS(dst http.RoundTripper, conn net.Conn, root *certin.KeyAndCert) {
 	defer handlePanic()
 	defer conn.Close()
 
@@ -174,12 +172,12 @@ func proxyHTTPS(conn net.Conn, root *certin.KeyAndCert) {
 
 	verbosef("reading request sent to %v (%v) ...", conn.LocalAddr(), serverName)
 
-	proxyHTTP(tlsconn)
+	proxyHTTP(dst, tlsconn)
 }
 
-// listen for incomming connections on l and proxy each one to the outside world, while sending
-// information about the request/response pairs to all HTTP listeners
-func proxyHTTP(conn net.Conn) {
+// Service an incoming HTTP connection on conn by sending a request out to the world through dst.
+// All HTTP requests sent to dst will have a context containing a value for the key dialToContextKey.
+func proxyHTTP(dst http.RoundTripper, conn net.Conn) {
 	defer handlePanic()
 	defer conn.Close()
 
@@ -199,8 +197,7 @@ func proxyHTTP(conn net.Conn) {
 	}
 	defer req.Body.Close()
 
-	// the request may contain a relative URL but we need an absolute URL for RoundTrip to know
-	// where to dial
+	// the request may contain a relative URL but we need an absolute URL for call to RoundTrip
 	if req.URL.Host == "" {
 		req.URL.Host = req.Host
 		if req.URL.Host == "" {
@@ -211,37 +208,23 @@ func proxyHTTP(conn net.Conn) {
 		req.URL.Scheme = "https"
 	}
 
-	// create a RoundTripper that always dials the IP we intercepted packets to
+	// add the IP to which we intercepted packets as a context variable
 	dialTo := req.URL.Host
 	if !strings.Contains(dialTo, ":") {
 		dialTo += ":https"
 	}
-
-	// these parameters copied from http.DefaultTransport
-	roundTripper := http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			if network != "tcp" {
-				return nil, fmt.Errorf("network %q was requested of dialer pinned to tcp (%v)", network, dialTo)
-			}
-			verbosef("pinned dialer ignoring %q and dialing %v", address, dialTo)
-			return net.Dial("tcp", dialTo)
-		},
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          5,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-	}
+	req = req.WithContext(context.WithValue(req.Context(), dialToContextKey, dialTo))
 
 	// capture the request body into memory for inspection later
 	var reqbody bytes.Buffer
 	req.Body = TeeReadCloser(req.Body, &reqbody)
 
+	// it seems that harlog assumes that request.GetBody will be non-nil whenever request.Body is non-nil
+	req.GetBody = func() (io.ReadCloser, error) { return req.Body, nil }
+
 	// do roundtrip to the actual server in the world -- we use RoundTrip here because
 	// we do not want to follow redirects or accumulate our own cookies
-	resp, err := roundTripper.RoundTrip(req)
+	resp, err := dst.RoundTrip(req)
 	if err != nil {
 		// error here means the server hostname could not be resolved, or a TCP connection could not be made,
 		// or TLS could not be negotiated, or something like that

@@ -149,7 +149,21 @@ buddhismforaisutraco�
 ...
 ```
 
-Here the `--head` option tells httptap to print the HTTP headers, and `--body` tells it to print the raw HTTP payloads. To keep it short I'm showing just the first request/response pair above.
+Here the `--head` option tells httptap to print the HTTP headers, and `--body` tells it to print the raw HTTP payloads. To keep it short I'm showing just the first request/response pair.
+
+# HAR output
+
+You can dump the HTTP requests and responses to a HAR file like this:
+
+```
+$ httptap --dump-har out.har -- curl -Lso /dev/null https://monasticacademy.org
+```
+
+There are many HAR viewers out there that can visualize this dump file. For example here is how the above looks in the Google HAR Analyzer](https://toolbox.googleapps.com/apps/har_analyzer/):
+
+![HAR Analyzer Screenshot](docs/har-screenshot.png)
+
+Again, what you're looking at here is one HTTP request to https://monasticacademy.org that returns a 308 Redirect, followed by a second HTTP request to https://www.monasticacademy.org that return a 200 OK.
 
 # How it works
 
