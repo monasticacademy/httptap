@@ -189,4 +189,4 @@ When httptap starts, it creates a certificate authority (actually a private key 
 
 # Donations
 
-You can support me personally through github sponsors, or (my preference if it's an option for you) [the community I live in through our donate page](https://www.monasticacademy.org/donate).
+You can support [me personally through github sponsors](https://github.com/sponsors/alexflint), or (my preference if it's an option for you) [the community I live in through our donate page](https://www.monasticacademy.org/donate).
