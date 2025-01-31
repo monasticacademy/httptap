@@ -10,13 +10,15 @@
 </p>
 <br>
 
-View the HTTP and HTTPS requests made by a linux program:
+View the HTTP and HTTPS requests made by any linux program by running `httptap -- <command>`. For example, the following runs curl on "monasticacademy.org", which results in an HTTP status of 308 (Redirect):
 
 ```shell
 $ httptap -- curl https://monasticacademy.org
 ---> GET https://monasticacademy.org/
 <--- 308 https://monasticacademy.org/ (15 bytes)
 ```
+
+Now let's try the same thing with an HTTP request from python. This time we see that python follows the redirect and gets a 200 OK response:
 
 ```shell
 httptap -- python -c "import requests; requests.get('https://monasticacademy.org')"
@@ -26,24 +28,14 @@ httptap -- python -c "import requests; requests.get('https://monasticacademy.org
 <--- 200 https://www.monasticacademy.org/ (5796 bytes)
 ```
 
-Httptap runs the requested command in an isolated network namespace, injecting a certificate authority created on-the-fly in order to decrypt HTTPS traffic. If you can run `<command>` on your shell, you can likely also run `httptap -- <command>`. You do not need to be the root user, nor set up any kind of daemon, nor make any system-wide changes to your system. The `httptap` executable is a static Go binary that runs without dependencies. You can install it with:
+To run `httptap` you do not need to be the root user. You do not need to set up any kind of daemon or make any system-wide changes to your system. It will not create any iptables rules or change your routing table, and generally will not affect any other processes running on the same system. The `httptap` executable is a static Go binary that runs without dependencies.
 
-```shell
-go install github.com/monasticacademy/httptap@latest
-```
-
-or download a pre-built release with:
-
-```shell
-curl -L https://github.com/monasticacademy/httptap/releases/download/v0.0.3/httptap_Linux_x86_64.tar.gz | tar xzf -
-```
-
-Httptap is linux-only. It makes extensive use of linux-specific system calls and is unlikely to be ported to other operating systems.
+Httptap only runs on linux at present. It makes use of linux-specific system calls -- in particular network namespaces -- that will unfortunately make it very difficult to port to other operating systems. If you know how httptap could be ported to other operating systems then please get in touch!
 
 # Install pre-built binary
 
 ```shell
-curl -L https://github.com/monasticacademy/httptap/releases/download/v0.0.3/httptap_Linux_x86_64.tar.gz | tar xzf -
+curl -L https://github.com/monasticacademy/httptap/releases/download/v0.0.5/httptap_linux_x86_64.tar.gz | tar xzf -
 ```
 
 For all versions and CPU architectures see the [releases page](https://github.com/monasticacademy/httptap/releases/).
@@ -79,7 +71,7 @@ Now we can see that after receiving the 302 redirect, curl made an additional HT
 Let's see what HTTP endpoints the Google Cloud command line interface uses to list compute resources (this requires that you have gcloud installed and are signed in):
 
 ```shell
-$ httptap gcloud compute instances list
+$ httptap -- gcloud compute instances list
 ---> POST https://oauth2.googleapis.com/token
 <--- 200 https://oauth2.googleapis.com/token (997 bytes)
 ---> GET https://compute.googleapis.com/compute/v1/projects/maple-public-website/aggregated/instances?alt=json&includeAllScopes=True&maxResults=500&returnPartialSuccess=True
@@ -119,7 +111,7 @@ $ httptap --https 443 6443 -- kubectl get all --insecure-skip-tls-verify
 
 In the above, `--insecure-skip-tls-verify` is necessary because kubectl doesn't use the httptap-generated certificate authority, and `--https 443 6443` says to treat TCP connections on ports 443 and 6443 as HTTPS connections, which is needed because my cluter's API endpoint uses port 6443.
 
-Let's see how DNS-over-HTTP works:
+Let's see how DNS-over-HTTP works when you use `--doh-url` with curl:
 
 ```shell
 $ httptap -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://buddhismforai.sutra.co -o /dev/null
@@ -133,9 +125,9 @@ $ httptap -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://bud
 <--- 200 https://buddhismforai.sutra.co/space/cbodvy/content (6377 bytes)
 ```
 
-What happened here is that we told `curl` to request the url "https://buddhismforai.sutra.co", using the cloudflare DNS-over-HTTP service for DNS queries. In the output we see that `curl` made 4 HTTP requests in total; the first two were DNS lookups, and then the second two were the HTTP requests for buddhismforai.sutra.co, making use of the IP addresses obtained in the DNS queries.
+What happened here is that we told `curl` to request the url "https://buddhismforai.sutra.co", using the cloudflare DNS-over-HTTP service at `cloudflare-dns.com`. In the output we see that `curl` made 4 HTTP requests in total; the first two were DNS lookups, and then the second two were the ordinary HTTP requests for buddhismforai.sutra.co.
 
-Let's see how the DNS-over-HTTP payloads look:
+Let's print the contents of the DNS-over-HTTP payloads look:
 
 ```shell
 $ httptap --head --body -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://buddhismforai.sutra.co -o /dev/null
@@ -161,6 +153,8 @@ Here the `--head` option tells httptap to print the HTTP headers, and `--body` t
 
 # How it works
 
+When you run `httptap -- <command>`, httptap runs `<command>` in an isolated network namespace, injecting a certificate authority created on-the-fly in order to decrypt HTTPS traffic. Here is the process in detail:
+
 In linux, there is a kernel API for creating and configuring network interfaces. Conventionally, a network interface would be a physical ethernet or WiFi controller in your computer, but it is possible to create a special kind of network interface called a TUN device. A TUN device shows up to the system in the way that any network interface shows up, but any traffic written to it will be delivered to a file descriptor held by the process that created it. Httptap creates a TUN device and runs the subprocess in an environment in which all network traffic is routed through that device.
 
 There is also a kernel API in linux for creating network namespaces. A network namespace is a list of network interfaces and routing rules. When a process is started in linux, it can be run in a specified network namespace. By default, processes run in a root network namespace that we do not want to make chagnes to because doing so would affect all network traffic on the system. Instead, we create a network namespace in which there are only two network interfaces: a loopback device (127.0.0.1) and a TUN device that delivers traffic to us. Then we run the subprocess in that namespace.
@@ -177,3 +171,8 @@ When httptap starts, it creates a certificate authority (actually a private key 
 
 - The process cannot listen for incoming network connections
 - You need access to `/dev/net/tun`
+- All ICMP echo requests will be echoed without sending any ICMP packets out to the real network
+
+# Donations
+
+You can support me personally through github sponsors, or (my preference if it's an option for you) [the community I live in through our donate page](https://www.monasticacademy.org/donate).
