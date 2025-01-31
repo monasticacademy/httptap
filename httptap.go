@@ -619,7 +619,7 @@ func Main() error {
 		// open the file right away so that filesystem errors get surfaced as soon as possible
 		f, err := os.Create(args.DumpHAR)
 		if err != nil {
-			log.Printf("error opening HAR file for writing: %w", err)
+			log.Printf("error opening HAR file for writing: %v", err)
 		}
 		defer f.Close()
 
