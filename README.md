@@ -127,7 +127,7 @@ $ httptap -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://bud
 
 What happened here is that we told `curl` to request the url "https://buddhismforai.sutra.co", using the cloudflare DNS-over-HTTP service at `cloudflare-dns.com`. In the output we see that `curl` made 4 HTTP requests in total; the first two were DNS lookups, and then the second two were the ordinary HTTP requests for buddhismforai.sutra.co.
 
-Let's print the contents of the DNS-over-HTTP payloads look:
+Let's print the contents of the DNS-over-HTTP payloads:
 
 ```shell
 $ httptap --head --body -- curl -sL --doh-url https://cloudflare-dns.com/dns-query https://buddhismforai.sutra.co -o /dev/null
