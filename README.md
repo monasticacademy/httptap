@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="./docs/readme-header.jpg" alt="Monastic Academy" height="450px">
+  <img src="./docs/readme-header.webp" alt="Monastic Academy" height="450px">
   <br>
   httptap
   </br>
@@ -191,7 +191,7 @@ For the past few years we have been recording a lecture series called [Buddhism 
 
 Finally, our head teacher [Soryu Forall](https://www.monasticacademy.org/teacher) published a book a few years back called [Buddhism For All](https://buddhism.net/buddhism-for-all-book/). We're working on a sequel at the moment.
 
-![MAPLE Group Photo](docs/group.jpg)
+![MAPLE Group Photo](docs/group.webp)
 
 # Caveats
 
