@@ -106,7 +106,7 @@ $ httptap --https 443 6443 -- kubectl get all --insecure-skip-tls-verify
 <--- 200 https://cluster:6443/apis/batch/v1/namespaces/default/cronjobs?limit=500 (3134 bytes)
 ---> GET https://cluster:6443/apis/batch/v1/namespaces/default/jobs?limit=500
 <--- 200 https://cluster:6443/apis/batch/v1/namespaces/default/jobs?limit=500 (2052 bytes)
-<kubectl output will be here>
+<ordinary kubectl output here>
 ```
 
 In the above, `--insecure-skip-tls-verify` is necessary because kubectl doesn't use the httptap-generated certificate authority, and `--https 443 6443` says to treat TCP connections on ports 443 and 6443 as HTTPS connections, which is needed because my cluter's API endpoint uses port 6443.
@@ -159,7 +159,7 @@ You can dump the HTTP requests and responses to a HAR file like this:
 $ httptap --dump-har out.har -- curl -Lso /dev/null https://monasticacademy.org
 ```
 
-There are many HAR viewers out there that can visualize this dump file. For example here is how the above looks in the Google HAR Analyzer](https://toolbox.googleapps.com/apps/har_analyzer/):
+There are many HAR viewers out there that can visualize this dump file. For example here is how the above looks in the [Google HAR Analyzer](https://toolbox.googleapps.com/apps/har_analyzer/):
 
 ![HAR Analyzer Screenshot](docs/har-screenshot.png)
 
