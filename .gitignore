@@ -4,6 +4,7 @@
 *.crt
 *.pem
 *.class
+*.har
 
 **/secrets/*
 !**/secrets/*.encrypted

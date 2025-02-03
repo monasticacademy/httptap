@@ -81,7 +81,10 @@ test-with-node: clean
 	go run . node experiments/js/get.js
 
 test-with-deno: clean
-	go run . -- deno --allow-net experiments/deno/get.ts
+	go run . -- deno --allow-net experiments/ts/get.ts
+
+test-with-bun: clean
+	go run . -- bun experiments/ts/get.ts
 
 test-with-self: clean
 	go run . go run . curl https://www.example.com
