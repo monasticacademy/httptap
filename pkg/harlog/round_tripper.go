@@ -89,7 +89,10 @@ func (h *Transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// do the HTTP roundtrip
 	resp, realErr := baseRoundTripper.RoundTrip(r)
 
-	err = h.postRoundTrip(resp, entry)
+	err = nil
+	if resp != nil {
+		err = h.postRoundTrip(resp, entry)
+	}
 
 	timings.endAt = time.Now()
 	UpdateEntryWithTimings(entry, timings)
@@ -128,6 +131,8 @@ func (h *Transport) preRoundTrip(r *http.Request, entry *Entry) error {
 			return err
 		}
 	}
+
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	return UpdateEntryWithRequest(entry, r, body)
 }
