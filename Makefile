@@ -77,8 +77,11 @@ test-with-java: clean
 test-with-doh: clean
 	go run . -- curl --doh-url https://cloudflare-dns.com/dns-query https://www.example.com
 
-test-with-js: clean
+test-with-node: clean
 	go run . node experiments/js/get.js
+
+test-with-deno: clean
+	go run . -- deno --allow-net experiments/deno/get.ts
 
 test-with-self: clean
 	go run . go run . curl https://www.example.com
