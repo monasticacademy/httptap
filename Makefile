@@ -95,9 +95,6 @@ broken-test-with-nonroot-user: clean
 
 # these tests require things that I do not want to install into github actions
 
-local-test-with-oci: clean
-	go run . -- oci ce cluster generate-token --region us-ashburn-1 --cluster-id ocid1.cluster.oc1.iad.aaaaaaaauluvhw2v2emhebn4h724eedou76nhacixlczbj4emc52m44j4asq
-
 local-test-with-gcloud: clean
 	go run . -- gcloud compute instances list
 
