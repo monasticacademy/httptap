@@ -544,7 +544,8 @@ func Main() error {
 		"CURL_CA_BUNDLE="+caPath,
 		"REQUESTS_CA_BUNDLE="+caPath,
 		"SSL_CERT_FILE="+caPath,
-		"DENO_CERT="+caPath,
+		"DENO_CERT="+caPath,           // for deno, which does not read SSL_CERT_FILE
+		"NODE_EXTRA_CA_CERTS="+caPath, // for bun, which does not read SSL_CERT_FILE
 		"_JAVA_OPTIONS=-Djavax.net.ssl.trustStore="+caPathPKCS12,
 		"JDK_JAVA_OPTIONS=-Djavax.net.ssl.trustStore="+caPathPKCS12,
 		"NODE_EXTRA_CA_CERTS="+caPath,
