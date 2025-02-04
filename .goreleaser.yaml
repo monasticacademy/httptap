@@ -11,7 +11,7 @@ builds:
       - linux
 
 archives:
-  - format: tar.gz
+  - formats: ['tar.gz']
     name_template: >-
       {{ .ProjectName }}_
       {{- .Os }}_
