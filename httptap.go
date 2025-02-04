@@ -173,8 +173,8 @@ func Main() error {
 		Stack              string   `arg:"env:HTTPTAP_STACK" default:"gvisor" help:"which tcp implementation to use: 'gvisor' or 'homegrown'"`
 		DumpTCP            bool     `arg:"--dump-tcp,env:HTTPTAP_DUMP_TCP" help:"dump all TCP packets sent and received to standard out"`
 		DumpHAR            string   `arg:"--dump-har,env:HTTPTAP_DUMP_HAR" help:"path to dump HAR capture to"`
-		HTTPPorts          []int    `arg:"--http" help:"list of TCP ports to intercept HTTPS traffic on"`
-		HTTPSPorts         []int    `arg:"--https" help:"list of TCP ports to intercept HTTP traffic on"`
+		HTTPPorts          []int    `arg:"--http" help:"list of TCP ports to intercept HTTP traffic on"`
+		HTTPSPorts         []int    `arg:"--https" help:"list of TCP ports to intercept HTTPS traffic on"`
 		Head               bool     `help:"whether to include HTTP headers in terminal output"`
 		Body               bool     `help:"whether to include HTTP payloads in terminal output"`
 		Command            []string `arg:"positional"`
