@@ -234,7 +234,18 @@ func dnsTypeCode(t uint16) string {
 	}
 }
 
-// handleDNSQuery resolves IPv4 hostnames according to net.DefaultResolver
+var specialAddresses = map[string]net.IP{
+	"host.httptap.local.": net.IP{169, 254, 77, 65},
+}
+
+// handleDNSQuery answers DNS queries according to:
+//
+//	net.DefaultResolver if the DNS request is A or AAAA
+//	cloudflare DNS for other DNS requests
+//
+// It always returns the special IP 169.254.77.65 for the special name host.httptap.local.
+// Traffic sent to this address is routed to the loopback interface on the host (different
+// from the loopback device seen by the subprocess)
 func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 	const upstreamDNS = "1.1.1.1:53" // TODO: get from resolv.conf and nsswitch.conf
 
@@ -248,9 +259,15 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 	// handle the request ourselves
 	switch question.Qtype {
 	case dns.TypeA:
-		ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", question.Name)
-		if err != nil {
-			return nil, fmt.Errorf("the default resolver said: %w", err)
+		var ips []net.IP
+		if ip, ok := specialAddresses[question.Name]; ok {
+			ips = append(ips, ip)
+		} else {
+			var err error
+			ips, err = net.DefaultResolver.LookupIP(ctx, "ip4", question.Name)
+			if err != nil {
+				return nil, fmt.Errorf("the default resolver said: %w", err)
+			}
 		}
 
 		verbosef("resolved %v to %v with default resolver", question.Name, ips)
