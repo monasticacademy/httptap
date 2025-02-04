@@ -172,12 +172,18 @@ func proxyHTTPS(dst http.RoundTripper, conn net.Conn, root *certin.KeyAndCert) {
 
 	verbosef("reading request sent to %v (%v) ...", conn.LocalAddr(), serverName)
 
-	proxyHTTP(dst, tlsconn)
+	proxyHTTPScheme(dst, tlsconn, "https")
 }
 
 // Service an incoming HTTP connection on conn by sending a request out to the world through dst.
 // All HTTP requests sent to dst will have a context containing a value for the key dialToContextKey.
 func proxyHTTP(dst http.RoundTripper, conn net.Conn) {
+	proxyHTTPScheme(dst, conn, "http")
+}
+
+// Service an incoming HTTP connection on conn by sending a request out to the world through dst.
+// If the URL in the request does not contain a scheme, use the specified scheme for the proxied request.
+func proxyHTTPScheme(dst http.RoundTripper, conn net.Conn, outgoingScheme string) {
 	defer handlePanic()
 	defer conn.Close()
 
@@ -187,8 +193,6 @@ func proxyHTTP(dst http.RoundTripper, conn net.Conn) {
 	counts := countBytesConn{Conn: conn}
 	conn = &counts
 
-	verbosef("reading request sent to %v ...", conn.LocalAddr())
-
 	// read the HTTP request (TODO: support HTTP/2 using golang.org/x/net/http2)
 	req, err := http.ReadRequest(bufio.NewReader(conn))
 	if err != nil {
@@ -196,6 +200,8 @@ func proxyHTTP(dst http.RoundTripper, conn net.Conn) {
 		return
 	}
 	defer req.Body.Close()
+
+	verbosef("decoded an HTTP request for %v sent to %v", req.URL, conn.LocalAddr())
 
 	// the request may contain a relative URL but we need an absolute URL for call to RoundTrip
 	if req.URL.Host == "" {
@@ -205,7 +211,7 @@ func proxyHTTP(dst http.RoundTripper, conn net.Conn) {
 		}
 	}
 	if req.URL.Scheme == "" {
-		req.URL.Scheme = "https"
+		req.URL.Scheme = outgoingScheme
 	}
 
 	// add the IP to which we intercepted packets as a context variable

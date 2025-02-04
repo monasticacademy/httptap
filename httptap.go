@@ -601,10 +601,18 @@ func Main() error {
 			if network != "tcp" {
 				return nil, fmt.Errorf("network %q was requested of dialer pinned to tcp", network)
 			}
+			var dialTo string
 			dialTo, ok := ctx.Value(dialToContextKey).(string)
 			if !ok {
 				return nil, fmt.Errorf("context on proxied request was missing dialTo key")
 			}
+
+			// In order for processes in the network namespace to reach "localhost" in the host's
+			// network they use "host.httptap.local" or 169.254.77.65. Here we route request to
+			// those addresses to 127.0.0.1.
+			dialTo = strings.Replace(dialTo, specialHostName, "127.0.0.1", 1)
+			dialTo = strings.Replace(dialTo, specialHostIP, "127.0.0.1", 1)
+
 			verbosef("pinned dialer ignoring %q and dialing %v", address, dialTo)
 			return net.Dial("tcp", dialTo)
 		},
@@ -661,7 +669,15 @@ func Main() error {
 
 	// listen for other TCP connections and proxy to the world
 	mux.HandleTCP("*", func(conn net.Conn) {
-		proxyTCP(conn)
+		dst := conn.LocalAddr().String()
+
+		// In order for processes in the network namespace to reach "localhost" in the host's
+		// network they use "host.httptap.local" or 169.254.77.65. Here we route request to
+		// those addresses to 127.0.0.1.
+		dst = strings.Replace(dst, specialHostName, "127.0.0.1", 1)
+		dst = strings.Replace(dst, specialHostIP, "127.0.0.1", 1)
+
+		proxyTCP(dst, conn)
 	})
 
 	switch strings.ToLower(args.Stack) {
