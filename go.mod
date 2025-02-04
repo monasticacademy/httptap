@@ -3,10 +3,16 @@ module github.com/monasticacademy/httptap
 go 1.23.1
 
 require (
+	github.com/djherbis/buffer v1.2.0
+	github.com/djherbis/nio/v3 v3.0.1
 	github.com/ebitengine/purego v0.8.1
+	github.com/elazarl/goproxy v1.7.0
 	github.com/fatih/color v1.17.0
 	github.com/google/gopacket v1.1.19
 	github.com/joemiller/certin v0.3.5
+	github.com/r3labs/sse v0.0.0-20210224172625-26fe804710bc
+	github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091
+	github.com/xjasonlyu/tun2socks/v2 v2.5.2
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b
 	golang.org/x/tools v0.22.0
 	software.sslmate.com/src/go-pkcs12 v0.5.0
@@ -20,7 +26,9 @@ require (
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
+	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 )
 
 require (

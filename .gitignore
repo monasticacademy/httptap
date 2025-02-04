@@ -10,6 +10,7 @@
 !**/secrets/*.encrypted
 !**/secrets/*.go
 /out
+/httptap
 
 dist/
 good-examples/
