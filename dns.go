@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	"github.com/miekg/dns"
 )
@@ -236,8 +238,6 @@ func dnsTypeCode(t uint16) string {
 
 // handleDNSQuery resolves IPv4 hostnames according to net.DefaultResolver
 func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
-	const upstreamDNS = "1.1.1.1:53" // TODO: get from resolv.conf and nsswitch.conf
-
 	if len(req.Question) == 0 {
 		return nil, nil // this means no answer, no error, which is fine
 	}
@@ -285,6 +285,11 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 
 	verbose("proxying non-A request to upstream DNS server...")
 
+	dnsClientConfig, err := dns.ClientConfigFromFile("/etc/resolv.conf")
+	if err != nil {
+		return nil, fmt.Errorf("could not parse /etc/resolv.conf: %w", err)
+	}
+
 	// proxy the request to another server
 	request := new(dns.Msg)
 	req.CopyTo(request)
@@ -292,9 +297,25 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 
 	dnsClient := new(dns.Client)
 	dnsClient.Net = "udp"
-	response, _, err := dnsClient.Exchange(request, upstreamDNS)
-	if err != nil {
-		return nil, err
+	var (
+		response *dns.Msg
+		errs     []error
+	)
+	for _, dnsServer := range dnsClientConfig.Servers {
+		response, _, err = dnsClient.Exchange(request, dnsServer)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		break
+	}
+
+	if len(errs) > 0 {
+		var errStr []string
+		for _, err := range errs {
+			errStr = append(errStr, err.Error())
+		}
+		return nil, errors.New(strings.Join(errStr, ", "))
 	}
 
 	verbosef("got answer from upstream dns server with %d answers", len(response.Answer))
