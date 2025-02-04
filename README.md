@@ -165,6 +165,14 @@ There are many HAR viewers out there that can visualize this dump file. For exam
 
 Again, what you're looking at here is one HTTP request to https://monasticacademy.org that returns a 308 Redirect, followed by a second HTTP request to https://www.monasticacademy.org that return a 200 OK.
 
+# Reaching localhost
+
+To reach a localhost port, replace "localhost" with "host.httptap.local" or the special IP address 169.254.77.65. Traffic to these destinations will routed to localhost on your machine.
+
+The situation here is that in linux every network namespace automatically gets its own loopback device (127.0.0.1), and these can't be shared. This means that if a process running within httptap tries to connect to 127.0.0.1:1234, it'll actually be connecting to a "different" 127.0.0.1 from another process on your machine listening on this same address and port, and you won't be able to connect.
+
+As a workaround, the address 169.254.77.65 is hardcoded within httptap to route to 127.0.0.1.
+
 # How it works
 
 When you run `httptap -- <command>`, httptap runs `<command>` in an isolated network namespace, injecting a certificate authority created on-the-fly in order to decrypt HTTPS traffic. Here is the process in detail:
