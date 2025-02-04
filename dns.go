@@ -234,8 +234,15 @@ func dnsTypeCode(t uint16) string {
 	}
 }
 
+// TCP connections to this hostname will be routed to localhost on the host network
+const specialHostName = "host.httptap.local"
+
+// TCP connections to this IP address will be routed to localhost on the host network
+const specialHostIP = "169.254.77.65"
+
+// this map contains hardcoded DNS names
 var specialAddresses = map[string]net.IP{
-	"host.httptap.local.": net.IP{169, 254, 77, 65},
+	specialHostName + ".": net.IP{169, 254, 77, 65},
 }
 
 // handleDNSQuery answers DNS queries according to:
