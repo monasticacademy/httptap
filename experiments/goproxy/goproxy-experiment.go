@@ -147,11 +147,14 @@ func (logger *HttpLogger) LogResp(resp *http.Response, ctx *goproxy.ProxyCtx) {
 		err:  ctx.Error,
 		t:    time.Now(),
 		sess: ctx.Session,
-		from: from})
+		from: from,
+	})
 }
 
-var emptyResp = &http.Response{}
-var emptyReq = &http.Request{}
+var (
+	emptyResp = &http.Response{}
+	emptyReq  = &http.Request{}
+)
 
 func (logger *HttpLogger) LogReq(req *http.Request, ctx *goproxy.ProxyCtx) {
 	body := path.Join(logger.path, fmt.Sprintf("%d_req", ctx.Session))
@@ -165,7 +168,8 @@ func (logger *HttpLogger) LogReq(req *http.Request, ctx *goproxy.ProxyCtx) {
 		err:  ctx.Error,
 		t:    time.Now(),
 		sess: ctx.Session,
-		from: req.RemoteAddr})
+		from: req.RemoteAddr,
+	})
 }
 
 func (logger *HttpLogger) LogMeta(m *Meta) {
@@ -243,7 +247,7 @@ func main() {
 
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.Verbose = args.Verbose
-	if err := os.MkdirAll("db", 0755); err != nil {
+	if err := os.MkdirAll("db", 0o755); err != nil {
 		log.Fatal("Can't create dir", err)
 	}
 	logger, err := NewLogger("db")

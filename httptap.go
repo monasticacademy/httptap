@@ -46,9 +46,11 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-const dumpPacketsToSubprocess = false
-const dumpPacketsFromSubprocess = false
-const ttl = 10
+const (
+	dumpPacketsToSubprocess   = false
+	dumpPacketsFromSubprocess = false
+	ttl                       = 10
+)
 
 type AddrPort struct {
 	Addr net.IP

@@ -42,7 +42,6 @@ func Main() error {
 		log.Printf("Ethertype: % x\n", frame.Ethertype())
 		log.Printf("Payload: % x\n", frame.Payload())
 	}
-
 }
 
 func main() {

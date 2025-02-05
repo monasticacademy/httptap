@@ -68,7 +68,7 @@ func Mount(path string, nodes ...Bakeable) (*Remover, error) {
 
 	// all of these directories need to already exist for the syscalls below
 	for _, dir := range []string{layerdir, workdir} {
-		err = os.MkdirAll(dir, 0777)
+		err = os.MkdirAll(dir, 0o777)
 		if err != nil {
 			return nil, fmt.Errorf("error creating directory %v: %w", dir, err)
 		}

@@ -24,7 +24,6 @@ func DefaultCertFileEnv() string {
 		return lib.X509_get_default_cert_file_env()
 	}
 	return ""
-
 }
 
 // Get the default certificate dir configured for openssl, or empty string if openssl is not installed or cannot be loaded

@@ -7,7 +7,6 @@ import (
 )
 
 func TestTime_MarshalJSON(t *testing.T) {
-
 	tz, err := time.LoadLocation("Asia/Tokyo")
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +46,6 @@ func TestTime_MarshalJSON(t *testing.T) {
 }
 
 func TestTime_UnmarshalJSON(t *testing.T) {
-
 	// NOTE float64 - int64 の変換が生じるのでnsecレベルで誤差がでるのはしょうがない
 
 	tz, err := time.LoadLocation("Asia/Tokyo")

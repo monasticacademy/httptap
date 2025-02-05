@@ -242,7 +242,7 @@ const specialHostIP = "169.254.77.65"
 
 // this map contains hardcoded DNS names
 var specialAddresses = map[string]net.IP{
-	specialHostName + ".": net.IP{169, 254, 77, 65},
+	specialHostName + ".": {169, 254, 77, 65},
 }
 
 // handleDNSQuery answers DNS queries according to:

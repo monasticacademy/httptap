@@ -9,10 +9,12 @@ import (
 
 // from https://w3c.github.io/web-performance/specs/HAR/Overview.html
 
-var _ json.Marshaler = Time{}
-var _ json.Unmarshaler = (*Time)(nil)
-var _ json.Marshaler = Duration(0)
-var _ json.Unmarshaler = (*Duration)(nil)
+var (
+	_ json.Marshaler   = Time{}
+	_ json.Unmarshaler = (*Time)(nil)
+	_ json.Marshaler   = Duration(0)
+	_ json.Unmarshaler = (*Duration)(nil)
+)
 
 // Time provides ISO 8601 format JSON data.
 type Time time.Time
