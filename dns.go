@@ -19,17 +19,15 @@ func handleDNS(ctx context.Context, w io.Writer, payload []byte) {
 	}
 
 	if req.Opcode != dns.OpcodeQuery {
-		verbosef("ignoring a dns query with non-query opcode (%v)", req.Opcode)
+		errorf("ignoring a dns query with non-query opcode (%v)", req.Opcode)
 		return
 	}
 
 	// resolve the query
 	rrs, err := handleDNSQuery(ctx, &req)
 	if err != nil {
-		verbosef("dns failed for %v with error: %v, sending a response with empty answer", req, err.Error())
+		errorf("error performing DNS query: %v, sending a response with empty answer", err)
 		// do not abort here, continue on and send a reply with no answer
-		// because the client might easily have tried to resolve a non-existent
-		// hostname
 	}
 
 	resp := new(dns.Msg)
@@ -50,7 +48,6 @@ func handleDNS(ctx context.Context, w io.Writer, payload []byte) {
 		errorf("error writing dns response: %v, abandoning...", err)
 		return
 	}
-	verbosef("done responding to DNS request (sent %d bytes)", len(buf))
 }
 
 func dnsTypeCode(t uint16) string {
@@ -261,7 +258,9 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 	}
 
 	question := req.Question[0]
-	verbosef("got dns request for %v (%v)", question.Name, dnsTypeCode(question.Qtype))
+	questionType := dnsTypeCode(question.Qtype)
+
+	verbosef("got dns request for %v (%v)", question.Name, questionType)
 
 	// handle the request ourselves
 	switch question.Qtype {
@@ -288,6 +287,7 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 			rrs = append(rrs, rr)
 		}
 		return rrs, nil
+
 	case dns.TypeAAAA:
 		ips, err := net.DefaultResolver.LookupIP(ctx, "ip6", question.Name)
 		if err != nil {
@@ -307,7 +307,7 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 		return rrs, nil
 	}
 
-	verbose("proxying non-A request to upstream DNS server...")
+	verbosef("proxying %s request to upstream DNS server...", questionType)
 
 	// proxy the request to another server
 	request := new(dns.Msg)
@@ -318,13 +318,11 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 	dnsClient.Net = "udp"
 	response, _, err := dnsClient.Exchange(request, upstreamDNS)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in DNS message exchange: %w", err)
 	}
 
 	verbosef("got answer from upstream dns server with %d answers", len(response.Answer))
 
-	if len(response.Answer) > 0 {
-		return response.Answer, nil
-	}
-	return nil, fmt.Errorf("not found")
+	// note that we might have 0 answers here: this means there were no records for the query, which is not an error
+	return response.Answer, nil
 }
