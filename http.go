@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -311,7 +310,6 @@ func decodeContent(r io.Reader, encodings []string) ([]byte, error) {
 	for i := len(encodings) - 1; i >= 0; i-- {
 		switch strings.ToLower(encodings[i]) {
 		case "gzip":
-			log.Println("decoding gzip content")
 			r, err = gzip.NewReader(r)
 			if err != nil {
 				return nil, fmt.Errorf("error gzip-decoding: %w", err)
