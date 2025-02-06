@@ -28,7 +28,7 @@ httptap -- python -c "import requests; requests.get('https://monasticacademy.org
 <--- 200 https://www.monasticacademy.org/ (5796 bytes)
 ```
 
-To run `httptap` you do not need to be the root user. You do not need to set up any kind of daemon or make any system-wide changes to your system (edit: on Ubuntu 23.10 and later need to run the sysctl command documented below). It will not create any iptables rules or change your routing table, and generally will not affect any other processes running on the same system. The `httptap` executable is a static Go binary that runs without dependencies.
+To run `httptap` you do not need to be the root user. You do not need to set up any kind of daemon or make any system-wide changes to your system (edit: on Ubuntu 23.10 and later you will need to run [the sysctl documented below](#ubuntu-2310-and-later)). It will not create any iptables rules or change your routing table, and generally will not affect any other processes running on the same system. The `httptap` executable is a static Go binary that runs without dependencies.
 
 Httptap only runs on linux at present. It makes use of linux-specific system calls -- in particular network namespaces -- that will unfortunately make it very difficult to port to other operating systems. If you know how httptap could be ported to other operating systems then please get in touch!
 
