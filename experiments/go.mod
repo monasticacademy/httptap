@@ -14,7 +14,7 @@ require (
 	github.com/monasticacademy/httptap v0.0.3
 	github.com/r3labs/sse v0.0.0-20210224172625-26fe804710bc
 	github.com/xjasonlyu/tun2socks/v2 v2.5.2
-	golang.org/x/net v0.27.0
+	golang.org/x/net v0.34.0
 )
 
 require (
@@ -23,8 +23,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
 	golang.org/x/mod v0.18.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 )
@@ -39,7 +39,7 @@ require (
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/vishvananda/netlink v1.3.0
 	github.com/vishvananda/netns v0.0.4
-	golang.org/x/sys v0.26.0
+	golang.org/x/sys v0.29.0
 	golang.org/x/time v0.5.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20240928194204-917bbae826a0
 )
