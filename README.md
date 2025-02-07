@@ -35,7 +35,7 @@ Httptap only runs on linux at present. It makes use of linux-specific system cal
 # Install pre-built binary
 
 ```shell
-curl -L https://github.com/monasticacademy/httptap/releases/latest/download/httptap_linux_x86_64.tar.gz | tar xzf -
+curl -L https://github.com/monasticacademy/httptap/releases/latest/download/httptap_linux_$(uname -m).tar.gz | tar xzf -
 ```
 
 For all versions and CPU architectures see the [latest releases page](https://github.com/monasticacademy/httptap/releases/latest).
