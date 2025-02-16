@@ -10,12 +10,19 @@ import (
 )
 
 // WritePEM writes an x509 certificate to a PEM file
-func WritePEM(path string, certificate *x509.Certificate) error {
-	f, err := os.Create(path)
+func WritePEM(path string, certificate *x509.Certificate) (err error) {
+	var f *os.File
+	f, err = os.Create(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+
+	defer func() {
+		closeErr := f.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
 
 	return pem.Encode(f, &pem.Block{
 		Type:  "CERTIFICATE",
