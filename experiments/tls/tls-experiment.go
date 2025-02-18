@@ -16,12 +16,18 @@ import (
 	"github.com/joemiller/certin"
 )
 
-func writeCertFile(cert []byte, path string) error {
-	f, err := os.Create(path)
+func writeCertFile(cert []byte, path string) (err error) {
+	var f *os.File
+	f, err = os.Create(path)
 	if err != nil {
 		return fmt.Errorf("error opening pem file for writing: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		closeErr := f.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
 
 	err = pem.Encode(f, &pem.Block{
 		Type:  "CERTIFICATE",
