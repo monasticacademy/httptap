@@ -256,9 +256,15 @@ func Main() error {
 	}
 	defer os.RemoveAll(tempdir)
 
+	// marshal certificate authority to PEM format
+	caPEM, err := certfile.MarshalPEM(ca.Certificate)
+	if err != nil {
+		return fmt.Errorf("error marshaling certificate authority to PEM format: %w", err)
+	}
+
 	// write certificate authority to PEM file
 	caPath := filepath.Join(tempdir, "ca-certificates.crt")
-	err = certfile.WritePEM(caPath, ca.Certificate)
+	err = os.WriteFile(caPath, caPEM, 0666)
 	if err != nil {
 		return fmt.Errorf("error writing certificate authority to temporary PEM file: %w", err)
 	}
@@ -266,7 +272,7 @@ func Main() error {
 
 	// write certificate authority to another common PEM file
 	caPath2 := filepath.Join(tempdir, "ca-bundle.crt")
-	err = certfile.WritePEM(caPath2, ca.Certificate)
+	err = os.WriteFile(caPath2, caPEM, 0666)
 	if err != nil {
 		return fmt.Errorf("error writing certificate authority to temporary PEM file: %w", err)
 	}
@@ -410,6 +416,19 @@ func Main() error {
 			return fmt.Errorf("error setting up overlay: %w", err)
 		}
 		defer mount.Remove()
+	}
+
+	// overlay common certificate authority file locations
+	var caLocations = []string{"/etc/ssl/certs/ca-certificates.crt"}
+	for _, path := range caLocations {
+		if st, err := os.Lstat(path); err == nil && st.Mode().IsRegular() && !args.NoOverlay {
+			verbosef("overlaying %v...", path)
+			mount, err := overlay.Mount(filepath.Dir(path), overlay.File(filepath.Base(path), caPEM))
+			if err != nil {
+				return fmt.Errorf("error setting up overlay: %w", err)
+			}
+			defer mount.Remove()
+		}
 	}
 
 	// switch user and group if requested
