@@ -327,22 +327,31 @@ func Main() error {
 		return fmt.Errorf("error assign address to tun device: %w", err)
 	}
 
-	// parse the subnet that we will route to the tunnel
-	catchall, err := netlink.ParseIPNet("0.0.0.0/0")
+	// parse the subnet corresponding to all globally routable ipv4 addresses
+	ip4Routable, err := netlink.ParseIPNet("0.0.0.0/0")
 	if err != nil {
 		return fmt.Errorf("error parsing global subnet: %w", err)
 	}
 
-	// parse the gateway that we will act as
-	gateway := net.ParseIP(args.Gateway)
-	if gateway == nil {
-		return fmt.Errorf("error parsing gateway: %v", args.Gateway)
+	// parse the subnet corresponding to all globally routable ipv6 addresses
+	ip6Routable, err := netlink.ParseIPNet("2000::/3")
+	if err != nil {
+		return fmt.Errorf("error parsing global subnet: %w", err)
 	}
 
-	// add a route that sends all traffic going anywhere to our local address
+	// add a route that sends all ipv4 traffic going anywhere to the tun device
 	err = netlink.RouteAdd(&netlink.Route{
-		Dst: catchall,
-		Gw:  gateway,
+		Dst:       ip4Routable,
+		LinkIndex: link.Attrs().Index,
+	})
+	if err != nil {
+		return fmt.Errorf("error creating default ipv4 route: %w", err)
+	}
+
+	// add a route that sends all ipv6 traffic going anywhere to the tun device
+	err = netlink.RouteAdd(&netlink.Route{
+		Dst:       ip6Routable,
+		LinkIndex: link.Attrs().Index,
 	})
 	if err != nil {
 		return fmt.Errorf("error creating default route: %w", err)
@@ -351,7 +360,7 @@ func Main() error {
 	// find the loopback device
 	loopback, err := netlink.LinkByName("lo")
 	if err != nil {
-		return fmt.Errorf("error finding link for loopback device %q: %w", args.Tun, err)
+		return fmt.Errorf("error finding link for loopback device: %w", err)
 	}
 
 	// bring the link up
