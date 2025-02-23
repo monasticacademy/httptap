@@ -708,7 +708,20 @@ func Main() error {
 		dst = strings.Replace(dst, specialHostName, "127.0.0.1", 1)
 		dst = strings.Replace(dst, specialHostIP, "127.0.0.1", 1)
 
-		proxyTCP(dst, conn)
+		proxyConn("tcp", dst, conn)
+	})
+
+	// listen for other UDP connections and proxy to the world
+	mux.HandleUDP("*", func(conn net.Conn) {
+		dst := conn.LocalAddr().String()
+
+		// In order for processes in the network namespace to reach "localhost" in the host's
+		// network they use "host.httptap.local" or 169.254.77.65. Here we route request to
+		// those addresses to 127.0.0.1.
+		dst = strings.Replace(dst, specialHostName, "127.0.0.1", 1)
+		dst = strings.Replace(dst, specialHostIP, "127.0.0.1", 1)
+
+		proxyConn("udp", dst, conn)
 	})
 
 	switch strings.ToLower(args.Stack) {
