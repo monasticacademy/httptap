@@ -1,6 +1,7 @@
 package certfile
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -8,6 +9,19 @@ import (
 
 	"software.sslmate.com/src/go-pkcs12"
 )
+
+// MarshalPEM encodes an x509 certficate to bytes in PEM format
+func MarshalPEM(certificate *x509.Certificate) ([]byte, error) {
+	var b bytes.Buffer
+	err := pem.Encode(&b, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certificate.Raw,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
 
 // WritePEM writes an x509 certificate to a PEM file
 func WritePEM(path string, certificate *x509.Certificate) (err error) {
