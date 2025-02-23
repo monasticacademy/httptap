@@ -56,7 +56,13 @@ func (s *udpStack) handlePacket(ipv4 *layers.IPv4, udp *layers.UDP, payload []by
 
 	src := net.UDPAddr{IP: ipv4.SrcIP, Port: int(udp.SrcPort)}
 	dst := net.UDPAddr{IP: ipv4.DstIP, Port: int(udp.DstPort)}
-	s.app.notifyUDP(&w, &udpPacket{&src, &dst, payload})
+
+	verbosef("udp delivery for homegrown stack not implemented")
+
+	_ = src
+	_ = dst
+	_ = w
+	// s.app.notifyUDP(&w, &udpPacket{&src, &dst, payload})
 }
 
 // serializeUDP serializes a UDP packet
