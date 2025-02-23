@@ -49,6 +49,10 @@ test-with-curl-pre-resolved-non-tls: clean
 test-with-curl-ipv6:
 	go run . -- bash -c "curl -sL https://ipv6.google.com > out"
 
+test-with-http3:
+	cd experiments/http3get; go build -o /tmp/http3get; cd -
+	go run . -- /tmp/http3get
+
 # works with gvisor stack but not homegrown stack
 test-with-wget: clean
 	go run . -- wget https://example.com -O out
