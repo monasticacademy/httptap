@@ -214,11 +214,7 @@ func proxyHTTPScheme(dst http.RoundTripper, conn net.Conn, outgoingScheme string
 	}
 
 	// add the IP to which we intercepted packets as a context variable
-	dialTo := req.URL.Host
-	if !strings.Contains(dialTo, ":") {
-		dialTo += ":https"
-	}
-	req = req.WithContext(context.WithValue(req.Context(), dialToContextKey, dialTo))
+	req = req.WithContext(context.WithValue(req.Context(), dialToContextKey, conn.LocalAddr().String()))
 
 	// capture the request body into memory for inspection later
 	var reqbody bytes.Buffer
@@ -245,7 +241,7 @@ func proxyHTTPScheme(dst http.RoundTripper, conn net.Conn, outgoingScheme string
 			Body:          io.NopCloser(bytes.NewReader(errbody)),
 		}
 
-		errorf("error proxying request to %v: %v, returning %v", dialTo, err, resp.Status)
+		errorf("error proxying request to %v: %v, returning %v", conn.LocalAddr(), err, resp.Status)
 	}
 	defer resp.Body.Close()
 
