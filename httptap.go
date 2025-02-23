@@ -32,7 +32,6 @@ import (
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
-	"gvisor.dev/gvisor/pkg/rawfile"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -306,6 +305,8 @@ func Main() error {
 	if err != nil {
 		return fmt.Errorf("error finding link for new tun device %q: %w", args.Tun, err)
 	}
+
+	verbosef("tun device has MTU %d", link.Attrs().MTU)
 
 	// bring the link up
 	err = netlink.LinkSetUp(link)
@@ -601,8 +602,27 @@ func Main() error {
 	var mux mux
 
 	// handle DNS queries by calling net.Resolve
-	mux.HandleUDP(":53", func(w udpResponder, p *udpPacket) {
-		handleDNS(context.Background(), w, p.payload)
+	mux.HandleUDP(":53", func(conn net.Conn) {
+		defer conn.Close()
+		for {
+			// allocate new buffer on each iteration for now because different handlers for each packet
+			// are started asynchronously
+			payload := make([]byte, link.Attrs().MTU)
+			n, err := conn.Read(payload)
+			if err == net.ErrClosed {
+				verbose("UDP connection closed, exiting the read loop")
+				break
+			}
+			if err != nil {
+				verbosef("error reading udp packet with conn.ReadFrom: %v, ignoring", err)
+				continue
+			}
+
+			verbosef("read a UDP packet with %d bytes", n)
+
+			// handle the DNS query asynchronously
+			go handleDNS(context.Background(), conn, payload)
+		}
 	})
 
 	// create the transport that will proxy intercepted connections out to the world
@@ -704,16 +724,10 @@ func Main() error {
 			TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4},
 		})
 
-		// get maximum transmission unit for the tun device
-		mtu, err := rawfile.GetMTU(args.Tun)
-		if err != nil {
-			return fmt.Errorf("error getting MTU: %w", err)
-		}
-
 		// create a link endpoint based on the TUN device
 		endpoint, err := fdbased.New(&fdbased.Options{
 			FDs: []int{int(tun.ReadWriteCloser.(*os.File).Fd())},
-			MTU: mtu,
+			MTU: uint32(link.Attrs().MTU),
 		})
 		if err != nil {
 			return fmt.Errorf("error creating link from tun device file descriptor: %v", err)
@@ -728,7 +742,7 @@ func Main() error {
 				r.ID().RemoteAddress, r.ID().RemotePort,
 				r.ID().LocalAddress, r.ID().LocalPort)
 
-			// send a SYN+ACK in response to the SYN
+			// dispatch the request via the mux
 			go mux.notifyTCP(&tcpRequest{r, new(waiter.Queue)})
 		})
 
@@ -741,7 +755,7 @@ func Main() error {
 				r.ID().RemoteAddress, r.ID().RemotePort,
 				r.ID().LocalAddress, r.ID().LocalPort)
 
-			// create an endpoint for responding to this packet
+			// create an endpoint for responding to this packet -- unlike TCP we do this right away because there is no SYN+ACK to decide whether to send
 			var wq waiter.Queue
 			ep, err := r.CreateEndpoint(&wq)
 			if err != nil {
@@ -749,39 +763,8 @@ func Main() error {
 				return
 			}
 
-			// TODO: set keepalive count, keepalive interval, receive buffer size, send buffer size, like this:
-			//   https://github.com/xjasonlyu/tun2socks/blob/main/core/tcp.go#L83
-
-			// create a convenience adapter so that we can read and write using a net.Conn
-			conn := gonet.NewUDPConn(&wq, ep)
-
-			// we must read packets in a new goroutine and return control back to netstack
-			go func() {
-				defer conn.Close()
-
-				for {
-					// allocate new buffer on each iteration for now because different handlers for each packet
-					// are started asynchronously
-					buf := make([]byte, mtu)
-					n, _, err := conn.ReadFrom(buf)
-					if err == net.ErrClosed {
-						verbose("UDP connection closed, exiting the read loop")
-						break
-					}
-					if err != nil {
-						verbosef("error reading udp packet with conn.ReadFrom: %v, ignoring", err)
-						continue
-					}
-
-					verbosef("read a UDP packet with %d bytes", n)
-
-					mux.notifyUDP(conn, &udpPacket{
-						conn.RemoteAddr(),
-						conn.LocalAddr(),
-						buf[:n],
-					})
-				}
-			}()
+			// dispatch the request via the mux
+			go mux.notifyUDP(gonet.NewUDPConn(&wq, ep))
 		})
 
 		// register the forwarders with the stack

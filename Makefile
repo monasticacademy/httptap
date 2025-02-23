@@ -51,7 +51,7 @@ test-with-curl-ipv6:
 
 test-with-http3:
 	cd experiments/http3get; go build -o /tmp/http3get; cd -
-	go run . -- /tmp/http3get
+	go run . -- /tmp/http3get https://www.google.com
 
 # works with gvisor stack but not homegrown stack
 test-with-wget: clean
@@ -76,7 +76,7 @@ test-with-nslookup: clean
 	go run . -- nslookup google.com
 
 # should not generate extraneous error messages
-test-nonexistent-domain: clean:
+test-nonexistent-domain: clean
 	go run . -- curl https://notarealdomain.monasticacademy.org
 
 test-with-netcat-11223: clean
