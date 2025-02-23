@@ -31,7 +31,7 @@ test-with-netcat-http: clean
 	go run . -- bash -c "printf 'GET / HTTP/1.1\r\nHOST: example.com\r\nUser-Agent: nc\r\n\r\n' | nc 93.184.215.14 80 > out"
 
 test-with-curl: clean
-	go run . -- bash -c "env curl -s https://example.com > out"
+	go run . -- bash -c "curl -s https://example.com > out"
 
 test-with-curl-non-tls: clean
 	go run . -- bash -c "curl -s http://example.com > out"
@@ -44,6 +44,10 @@ test-with-curl-pre-resolved: clean
 
 test-with-curl-pre-resolved-non-tls: clean
 	go run . -- bash -c "curl -s --resolve example.com:80:93.184.215.14 http://example.com > out"
+
+# try curling ipv6.google.com, which has an ipv6 address only
+test-with-curl-ipv6:
+	go run . -- bash -c "curl -sL https://ipv6.google.com > out"
 
 # works with gvisor stack but not homegrown stack
 test-with-wget: clean
