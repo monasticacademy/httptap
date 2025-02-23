@@ -49,6 +49,10 @@ test-with-curl-pre-resolved-non-tls: clean
 test-with-curl-ipv6:
 	go run . -- bash -c "curl -sL https://ipv6.google.com > out"
 
+test-with-http3:
+	cd experiments/http3get; go build -o /tmp/http3get; cd -
+	go run . -- /tmp/http3get
+
 # works with gvisor stack but not homegrown stack
 test-with-wget: clean
 	go run . -- wget https://example.com -O out
@@ -70,6 +74,10 @@ test-with-dig-1111: clean
 
 test-with-nslookup: clean
 	go run . -- nslookup google.com
+
+# should not generate extraneous error messages
+test-nonexistent-domain: clean:
+	go run . -- curl https://notarealdomain.monasticacademy.org
 
 test-with-netcat-11223: clean
 	go run . -- bash -c "netcat example.com 11223 < /dev/null"
