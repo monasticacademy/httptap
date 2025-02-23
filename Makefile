@@ -75,6 +75,10 @@ test-with-dig-1111: clean
 test-with-nslookup: clean
 	go run . -- nslookup google.com
 
+# should not generate extraneous error messages
+test-nonexistent-domain: clean:
+	go run . -- curl https://notarealdomain.monasticacademy.org
+
 test-with-netcat-11223: clean
 	go run . -- bash -c "netcat example.com 11223 < /dev/null"
 
