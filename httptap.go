@@ -429,7 +429,7 @@ func Main() error {
 		LinkIndex: link.Attrs().Index,
 	})
 	if err != nil {
-		return fmt.Errorf("error creating default route: %w", err)
+		verbosef("error creating default ipv6 route: %w, ignoring", err)
 	}
 
 	// find the loopback device
