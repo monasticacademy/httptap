@@ -19,8 +19,8 @@ type Case struct {
 
 func Main() error {
 	var args struct {
-		Path    string `arg:"positional" default:"Makefile"`
-		Pattern string `default:"test-*"`
+		Path    string `default:"Makefile"`
+		Pattern string `arg:"positional" default:"test-*"`
 		Verbose bool   `arg:"-v,--verbose"`
 	}
 	arg.MustParse(&args)
@@ -41,7 +41,7 @@ func Main() error {
 	var inOutput bool
 	var cur *Case
 	for _, line := range lines {
-		if pos := strings.Index(line, ":"); pos >= 0 && !strings.HasPrefix(line, "\t") {
+		if pos := strings.Index(line, ":"); pos >= 0 && !strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, "#") {
 			cur = &Case{Target: line[:pos]}
 			cases = append(cases, cur)
 		}
@@ -52,15 +52,13 @@ func Main() error {
 			inOutput = true
 		} else if pos > 0 && cur != nil {
 			cur.Output = strings.TrimSpace(line[pos+len("# Output:"):])
-		}
-
-		if !strings.HasPrefix(line, "# ") {
-			inOutput = false
-		} else if inOutput && cur != nil {
+		} else if strings.HasPrefix(line, "# ") && inOutput && cur != nil {
 			if cur.Output != "" {
 				cur.Output += "\n"
 			}
 			cur.Output += line[2:]
+		} else if !strings.HasPrefix(line, "# ") {
+			inOutput = false
 		}
 	}
 
@@ -98,11 +96,11 @@ func Main() error {
 			success = false
 			if strings.Contains(out, "\n") || strings.Contains(c.Output, "\n") {
 				log.Printf("%s output incorrect:", c.Target)
-				log.Println(c.Output)
-				log.Println("Expected:")
 				log.Println(out)
+				log.Println("Expected:")
+				log.Println(c.Output)
 			} else {
-				log.Printf("%s output was %q, expected %q", c.Target, c.Output, out)
+				log.Printf("%s output was %q, expected %q", c.Target, out, c.Output)
 			}
 		}
 	}

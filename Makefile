@@ -1,4 +1,4 @@
-default: build
+default: run
 
 force:
 
@@ -7,6 +7,9 @@ build:
 
 clean: force
 	rm -rf out
+
+test:
+	go run ./testing/run-tests
 
 run: clean
 	httptap bash
@@ -28,12 +31,26 @@ tcpdump-port-11223:
 test-echo: install
 	httptap -- echo "hello"    	# Output: hello
 
+test-netcat: install
+	httptap -- \
+		bash -c "printf 'GET / HTTP/1.1\r\nHOST: example.com\r\nUser-Agent: nc\r\n\r\n' \
+		| nc example.com 80 > out"
+	grep -A 1000000 "<!doctype html>" out | diff - testing/expected/example.com
 
+# Output:
+# ---> GET http://example.com/
+# <--- 200 http://example.com/ (1256 bytes)
 
-# Test cases that do not run in CI
+test-netcat-pre-resolved: install
+	httptap -- \
+		bash -c "printf 'GET / HTTP/1.1\r\nHOST: example.com\r\nUser-Agent: nc\r\n\r\n' \
+		| nc $(shell dig +short example.com | head -n 1) 80
+		> out"
+	grep -A 1000000 "<!doctype html>" out | diff - testing/expected/example.com
 
-manual-test-netcat-http: install
-	httptap -- bash -c "printf 'GET / HTTP/1.1\r\nHOST: example.com\r\nUser-Agent: nc\r\n\r\n' | nc 93.184.215.14 80 > out"
+# Output:
+# ---> GET http://example.com/
+# <--- 200 http://example.com/ (1256 bytes)
 
 manual-test-curl: install
 	httptap -- bash -c "curl -s https://example.com > out"
