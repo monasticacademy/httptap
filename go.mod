@@ -5,6 +5,7 @@ go 1.23.1
 require (
 	github.com/ebitengine/purego v0.8.1
 	github.com/fatih/color v1.17.0
+	github.com/gobwas/glob v0.2.3
 	github.com/google/gopacket v1.1.19
 	github.com/joemiller/certin v0.3.5
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b

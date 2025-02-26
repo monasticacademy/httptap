@@ -1,3 +1,6 @@
+default: build
+
+force:
 
 build:
 	go build
@@ -6,119 +9,121 @@ clean: force
 	rm -rf out
 
 run: clean
-	go run . bash
+	httptap bash
 
-force:
+install:
+	go install
 
-# Targets beginning with "test-" are run automatically in CI
+webui-sleep-forever: install
+	httptap --webui :5000 -- sleep infinity
 
-
-webui-sleep-forever: clean
-	go run . --webui :5000 -- sleep infinity
-
-webui-curl-loop: clean
-	go run . --webui :5000 -- bash -c "while true; do echo "curling..."; curl -s https://www.example.com > out; sleep 1; done"
+webui-curl-loop: install
+	httptap --webui :5000 -- bash -c "while true; do echo "curling..."; curl -s https://www.example.com > out; sleep 1; done"
 
 tcpdump-port-11223:
 	sudo tcpdump -i lo 'tcp port 11223'
 
-# Test cases
+# Test cases that run in CI
 
-test-with-hello: clean
-	go run . -- go run ./experiments/hello
+test-echo: install
+	httptap -- echo "hello"    	# Output: hello
 
-test-with-netcat-http: clean
-	go run . -- bash -c "printf 'GET / HTTP/1.1\r\nHOST: example.com\r\nUser-Agent: nc\r\n\r\n' | nc 93.184.215.14 80 > out"
 
-test-with-curl: clean
-	go run . -- bash -c "curl -s https://example.com > out"
 
-test-with-curl-non-tls: clean
-	go run . -- bash -c "curl -s http://example.com > out"
+# Test cases that do not run in CI
 
-test-with-curl-monasticacademy: clean
-	go run . -- bash -c "curl -sL http://monasticacademy.org > out"
+manual-test-netcat-http: install
+	httptap -- bash -c "printf 'GET / HTTP/1.1\r\nHOST: example.com\r\nUser-Agent: nc\r\n\r\n' | nc 93.184.215.14 80 > out"
 
-test-with-curl-pre-resolved: clean
-	go run . -- bash -c "curl -s --resolve example.com:443:93.184.215.14 https://example.com > out"
+manual-test-curl: install
+	httptap -- bash -c "curl -s https://example.com > out"
 
-test-with-curl-pre-resolved-non-tls: clean
-	go run . -- bash -c "curl -s --resolve example.com:80:93.184.215.14 http://example.com > out"
+manual-test-curl-non-tls: install
+	httptap -- bash -c "curl -s http://example.com > out"
+
+manual-test-curl-monasticacademy: install
+	httptap -- bash -c "curl -sL http://monasticacademy.org > out"
+
+manual-test-curl-pre-resolved: install
+	httptap -- bash -c "curl -s --resolve example.com:443:93.184.215.14 https://example.com > out"
+
+manual-test-curl-pre-resolved-non-tls: install
+	httptap -- bash -c "curl -s --resolve example.com:80:93.184.215.14 http://example.com > out"
 
 # try curling ipv6.google.com, which has an ipv6 address only
-test-with-curl-ipv6:
-	go run . -- bash -c "curl -sL https://ipv6.google.com > out"
+manual-test-curl-ipv6:
+	httptap -- bash -c "curl -sL https://ipv6.google.com > out"
 
-test-with-http3:
+manual-test-http3:
 	cd experiments/http3get; go build -o /tmp/http3get; cd -
-	go run . -- /tmp/http3get https://www.google.com
+	httptap -- /tmp/http3get https://www.google.com
 
 # works with gvisor stack but not homegrown stack
-test-with-wget: clean
-	go run . -- wget https://example.com -O out
+manual-test-wget: install
+	httptap -- wget https://example.com -O out
 
-test-with-udp-11223: clean
-	go run . -- bash -c "echo 'hello udp' | socat udp4:1.2.3.4:11223 - "
+manual-test-udp-11223: install
+	httptap -- bash -c "echo 'hello udp' | socat udp4:1.2.3.4:11223 - "
 
-test-with-two-udp-packets: clean
-	go run . -- bash -c "echo 'hello udp' | socat udp4:1.2.3.4:11223 - ; echo 'hello again udp' | socat udp4:1.2.3.4:11223 - "
+manual-test-two-udp-packets: install
+	httptap -- bash -c "echo 'hello udp' | socat udp4:1.2.3.4:11223 - ; echo 'hello again udp' | socat udp4:1.2.3.4:11223 - "
 
-test-with-socat-dns: clean
-	go run . -- bash -c "echo cfc9 0100 0001 0000 0000 0000 0a64 7563 6b64 7563 6b67 6f03 636f 6d00 0001 0001 | xxd -p -r | socat udp4:1.1.1.1:53 - | xxd"
+manual-test-socat-dns: install
+	httptap -- bash -c "echo cfc9 0100 0001 0000 0000 0000 0a64 7563 6b64 7563 6b67 6f03 636f 6d00 0001 0001 | xxd -p -r | socat udp4:1.1.1.1:53 - | xxd"
 
-test-with-dig: clean
-	go run . -- dig -t a google.com
+manual-test-dig: install
+	httptap -- dig -t a google.com
 
-test-with-dig-1111: clean
-	go run . -- dig -t a google.com @1.1.1.1
+manual-test-dig-1111: install
+	httptap -- dig -t a google.com @1.1.1.1
 
-test-with-nslookup: clean
-	go run . -- nslookup google.com
+manual-test-nslookup: install
+	httptap -- nslookup google.com
 
 # should not generate extraneous error messages
-test-nonexistent-domain: clean
-	go run . -- curl https://notarealdomain.monasticacademy.org
+manual-test-nonexistent-domain: install
+	httptap -- curl https://notarealdomain.monasticacademy.org
 
-test-with-netcat-11223: clean
-	go run . -- bash -c "netcat example.com 11223 < /dev/null"
+manual-test-netcat-11223: install
+	httptap -- bash -c "netcat example.com 11223 < /dev/null"
 
-test-with-java: clean
+manual-test-java: install
 	javac experiments/java/Example.java
-	go run . -- java -cp experiments/java Example
+	httptap -- java -cp experiments/java Example
 
-test-with-doh: clean
-	go run . -- curl --doh-url https://cloudflare-dns.com/dns-query https://www.example.com
+manual-test-doh: install
+	httptap -- curl --doh-url https://cloudflare-dns.com/dns-query https://www.example.com
 
-test-with-node: clean
-	go run . node experiments/js/get.js
+manual-test-node: install
+	httptap node experiments/js/get.js
 
-test-with-deno: clean
-	go run . -- deno --allow-net experiments/ts/get.ts
+manual-test-deno: install
+	httptap -- deno --allow-net experiments/ts/get.ts
 
-test-with-bun: clean
-	go run . -- bun experiments/ts/get.ts
+manual-test-bun: install
+	httptap -- bun experiments/ts/get.ts
 
-test-with-self: clean
-	go run . go run . curl https://www.example.com
+manual-test-self: install
+	httptap httptap curl https://www.example.com
 
 # Test HAR output
 
-test-with-har:
-	go run . --dump-har out.har -- curl -Lso /dev/null https://monasticacademy.org
+manual-test-har:
+	httptap --dump-har out.har -- curl -Lso /dev/null https://monasticacademy.org
 
 # These tests are currently broken
 
-broken-test-with-nonroot-user: clean
-	go run . --user $(USER) -- bash -norc
+manual-test-nonroot-user: install
+	httptap --user $(USER) -- bash -norc
 
 # these tests require things that I do not want to install into github actions
 
-local-test-with-gcloud: clean
-	go run . -- gcloud compute instances list
+manual-test-gcloud: install
+	httptap -- gcloud compute instances list
 
 # docker-based tests
 
-docker-test: clean
+manual-test-dockerized-ubuntu: install
 	mkdir -p .build
 	go build -o .build/httptap
 	docker run \
@@ -132,7 +137,7 @@ docker-test: clean
 		ubuntu \
 		.build/httptap --no-overlay -- curl -so out https://www.example.com
 
-docker-test-with-alpine: clean
+manual-test-dockerized-alpine: install
 	mkdir -p .build
 	CGO_ENABLED=0 go build -o .build/httptap
 	docker run \
@@ -146,7 +151,7 @@ docker-test-with-alpine: clean
 		alpine/curl \
 		.build/httptap --no-overlay -- curl -so out https://www.example.com
 
-docker-test-with-distroless: clean
+manual-test-dockerized-distroless: install
 	mkdir -p .build
 	CGO_ENABLED=0 go build -o .build/httptap
 	CGO_ENABLED=0 go build -o .build/hi ./experiments/hello
@@ -163,22 +168,22 @@ docker-test-with-distroless: clean
 
 # tests that require sudo
 
-sudo-test: clean
+manual-test-sudo: install
 	go build -o /tmp/httptap .
 	sudo /tmp/httptap bash
 
-sudo-test-with-no-new-user-namespace: clean
+manual-test-no-new-user-namespace: install
 	go build -o /tmp/httptap .
 	sudo /tmp/httptap --no-new-user-namespace -- curl -so out https://www.example.com
 
-sudo-test-with-udp-experiment:
+manual-test-udp-experiment:
 	go build -o /tmp/httptap
 	go build -o /tmp/udp-experiment ./experiments/udp
 	sudo /tmp/httptap /tmp/udp-experiment httptap 1.2.3.4:11223
 
 # tests that require setcap
 
-setcap-test-with-setcap:
+manual-test-setcap:
 	go build -o /tmp/httptap
 	sudo setcap 'cap_net_admin=ep cap_sys_admin=ep cap_dac_override=ep' /tmp/httptap
 	/tmp/httptap --no-new-user-namespace -- curl -so out https://www.example.com
