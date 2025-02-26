@@ -150,6 +150,15 @@ test-nonexistent-domain:
 # Output:
 # httptap exited with code 6
 
+test-python:
+	httptap -- python -c 'import requests; requests.get("https://monasticacademy.org")'
+
+# Output:
+# ---> GET https://monasticacademy.org/
+# <--- 308 https://monasticacademy.org/ (15 bytes)
+# ---> GET https://www.monasticacademy.org/
+# <--- 200 https://www.monasticacademy.org/ (31955 bytes)
+
 test-java:
 	javac testing/java/Example.java
 	httptap -- java -cp testing/java Example 2>1 | grep -v JAVA_OPTIONS
