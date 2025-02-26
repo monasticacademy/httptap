@@ -36,6 +36,9 @@ setup:
 test-echo:
 	httptap -- echo "hello"
 
+# Output:
+# hello
+
 # Test that the user and group doesn't change inside httptap
 
 test-uid:
