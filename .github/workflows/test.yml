@@ -31,4 +31,4 @@ jobs:
 
       - name: End To End
         run: |
-          sudo go run ./testing/run-tests
+          sudo -E go run ./testing/run-tests
