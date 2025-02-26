@@ -239,15 +239,13 @@ test-har:
 # ---> GET https://www.monasticacademy.org/
 # <--- 200 https://www.monasticacademy.org/ (31955 bytes)
 
-# These tests are currently broken
-
-manual-test-nonroot-user:
-	./testing/httptap_test --user $(USER) -- bash -norc
-
-# these tests require things that I do not want to install into github actions
+# These tests require things that I do not want to install into github actions
 
 manual-test-gcloud:
 	./testing/httptap_test gcloud compute instances list
+
+manual-test-wine-battle-net:
+	go run . -- wine ~/Downloads/Battle.net-Setup.exe
 
 # Test running inside sudo
 
