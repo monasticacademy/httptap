@@ -87,7 +87,7 @@ outer:
 	}
 
 	// run the cases
-	success := true
+	var failures int
 	for _, c := range selected {
 		log.Println(c.Target)
 
@@ -96,9 +96,9 @@ outer:
 		b, err := cmd.CombinedOutput()
 		out := strings.TrimSpace(string(b))
 		if err != nil {
-			success = false
+			failures++
 			if err, isExit := err.(*exec.ExitError); isExit {
-				log.Printf("%v exited with code %v", c.Target, err.ExitCode())
+				log.Printf("%v exited with code %v and the following output", c.Target, err.ExitCode())
 				log.Println(out)
 				continue
 			} else {
@@ -107,7 +107,7 @@ outer:
 		}
 
 		if out != c.Output {
-			success = false
+			failures++
 			if strings.Contains(out, "\n") || strings.Contains(c.Output, "\n") {
 				log.Printf("%s output incorrect:", c.Target)
 				log.Println(out)
@@ -119,10 +119,11 @@ outer:
 		}
 	}
 
-	if success {
-		log.Printf("%d tests passed", len(selected))
+	if failures > 0 {
+		return fmt.Errorf("%d of %d tests failed", failures, len(selected))
 	}
 
+	log.Printf("%d tests passed", len(selected))
 	return nil
 }
 
