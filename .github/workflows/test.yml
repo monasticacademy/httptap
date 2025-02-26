@@ -31,6 +31,6 @@ jobs:
 
       - name: End To End
         run: |
-          sudo aa-teardown
+          sudo aa-teardown || true
           sudo systemctl stop apparmor
           go run ./testing/run-tests
