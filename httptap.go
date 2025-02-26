@@ -881,18 +881,21 @@ func Main() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = env
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: syscall.CLONE_NEWUSER,
-		UidMappings: []syscall.SysProcIDMap{{
-			ContainerID: args.UID,
-			HostID:      0,
-			Size:        1,
-		}},
-		GidMappings: []syscall.SysProcIDMap{{
-			ContainerID: args.GID,
-			HostID:      0,
-			Size:        1,
-		}},
+
+	if !args.NoNewUserNamespace {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Cloneflags: syscall.CLONE_NEWUSER,
+			UidMappings: []syscall.SysProcIDMap{{
+				ContainerID: args.UID,
+				HostID:      0,
+				Size:        1,
+			}},
+			GidMappings: []syscall.SysProcIDMap{{
+				ContainerID: args.GID,
+				HostID:      0,
+				Size:        1,
+			}},
+		}
 	}
 
 	err = cmd.Start()
