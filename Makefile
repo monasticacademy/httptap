@@ -36,8 +36,23 @@ setup:
 test-echo:
 	httptap -- echo "hello"
 
+# Test that the user and group doesn't change inside httptap
+
+test-uid:
+	id -u > expected
+	httptap -- bash -c "id -u > actual"
+	diff actual expected
+
+test-gid:
+	id -g > expected
+	httptap -- bash -c "id -g > actual"
+	diff actual expected
+
+test-root:
+	httptap --user root -- id -u
+
 # Output:
-# hello
+# 0
 
 test-curl:
 	httptap -- bash -c "curl -s https://example.com > out"
@@ -161,7 +176,7 @@ test-python:
 
 test-java:
 	javac testing/java/Example.java
-	httptap -- java -cp testing/java Example 2>1 | grep -v JAVA_OPTIONS
+	httptap -- java -cp testing/java Example 2>&1 | grep -v JAVA_OPTIONS
 
 # Output:
 # ---> GET https://example.com/
