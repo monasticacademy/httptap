@@ -851,7 +851,7 @@ func Main() error {
 	if err != nil {
 		exitError, isExitError := err.(*exec.ExitError)
 		if isExitError {
-			return fmt.Errorf("subprocess exited with code %d", exitError.ExitCode())
+			os.Exit(exitError.ExitCode())
 		} else {
 			return fmt.Errorf("error running subprocess: %v", err)
 		}
