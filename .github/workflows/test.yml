@@ -12,7 +12,7 @@ jobs:
       - name: Apt
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dia doxygen doxygen-doc doxygen-gui doxygen-latex graphviz mscgen
+          packages: dnsutils socat openjdk-21-jdk-headless openjdk-21-jre-headless
           version: 1.0
 
       - name: Checkout
