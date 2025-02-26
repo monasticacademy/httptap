@@ -14,14 +14,14 @@ import (
 type Case struct {
 	Target string // name of the makefile target
 	Output string // output expected from this target
-	Exit   int    // exit code expected from this target
 }
 
 func Main() error {
 	var args struct {
 		Path    string `default:"Makefile"`
 		Pattern string `arg:"positional" default:"test-*"`
-		Verbose bool   `arg:"-v,--verbose"`
+		Exclude []string
+		Verbose bool `arg:"-v,--verbose"`
 	}
 	arg.MustParse(&args)
 
@@ -33,6 +33,15 @@ func Main() error {
 	pattern, err := glob.Compile(args.Pattern)
 	if err != nil {
 		return fmt.Errorf("bad glob %q: %w", args.Pattern, err)
+	}
+
+	var exclude []glob.Glob
+	for _, s := range args.Exclude {
+		pat, err := glob.Compile(s)
+		if err != nil {
+			return fmt.Errorf("bad glob %q: %w", args.Pattern, err)
+		}
+		exclude = append(exclude, pat)
 	}
 
 	var cases []*Case
@@ -64,19 +73,23 @@ func Main() error {
 
 	// select the cases matching the glob pattern
 	var selected []*Case
+outer:
 	for _, c := range cases {
-		if pattern.Match(c.Target) {
-			selected = append(selected, c)
+		if !pattern.Match(c.Target) {
+			continue
 		}
+		for _, g := range exclude {
+			if g.Match(c.Target) {
+				continue outer
+			}
+		}
+		selected = append(selected, c)
 	}
 
 	// run the cases
 	success := true
 	for _, c := range selected {
-		if args.Verbose {
-			log.Println(c.Target + " ->")
-			log.Printf("%q", c.Output)
-		}
+		log.Println(c.Target)
 
 		// run make <target>
 		cmd := exec.Command("make", "-s", "-f", args.Path, c.Target)
@@ -85,10 +98,11 @@ func Main() error {
 		if err != nil {
 			success = false
 			if err, isExit := err.(*exec.ExitError); isExit {
-				log.Printf("%s exited with code %d:", c.Target, err.ExitCode())
+				log.Printf("%v exited with code %v", c.Target, err.ExitCode())
 				log.Println(out)
+				continue
 			} else {
-				return fmt.Errorf("error running %v: %w", strings.Join(cmd.Args, " "))
+				return fmt.Errorf("error running %v: %w", strings.Join(cmd.Args, " "), err)
 			}
 		}
 

@@ -11,8 +11,7 @@ public class Example {
                 .uri(URI.create("https://example.com/"))
                 .build();
         try {
-            HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
-            System.out.println(response.body());
+            client.send(request, BodyHandlers.ofString());
         } catch (Exception ex) {
             System.out.println("error making http request: "+ ex.getMessage());
         }

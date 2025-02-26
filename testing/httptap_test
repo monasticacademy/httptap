@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Runs <command> inside and outside httptap, testing that the output matches exactly
+
+command=$*
+$command > expected
+httptap -- bash -c "$command > actual"
+exitcode=$?
+if [[ $exitcode != 0 ]]; then
+    echo httptap exited with code $exitcode
+fi
+diff actual expected
