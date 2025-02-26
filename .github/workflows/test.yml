@@ -10,7 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Apt
-        run: sudo apt install -y dnsutils socat openjdk-21-jdk-headless openjdk-21-jre-headless
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: dia doxygen doxygen-doc doxygen-gui doxygen-latex graphviz mscgen
+          version: 1.0
 
       - name: Checkout
         uses: actions/checkout@v4
