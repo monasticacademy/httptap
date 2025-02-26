@@ -5,11 +5,11 @@ import (
 	"net"
 )
 
-// proxyTCP proxies data received on one TCP connection to the world, and back the other way.
-func proxyTCP(dst string, subprocess net.Conn) {
+// proxyConn proxies data received on one TCP connection to the world, and back the other way.
+func proxyConn(network, addr string, subprocess net.Conn) {
 	// the connections's "LocalAddr" is actually the address that the other side (the subprocess) was trying
 	// to reach, so that's the address we dial in order to proxy
-	world, err := net.Dial("tcp", dst)
+	world, err := net.Dial(network, addr)
 	if err != nil {
 		// TODO: report errors not related to destination being unreachable
 		subprocess.Close()

@@ -26,7 +26,7 @@ func handleDNS(ctx context.Context, w io.Writer, payload []byte) {
 	// resolve the query
 	rrs, err := handleDNSQuery(ctx, &req)
 	if err != nil {
-		errorf("error performing DNS query: %v, sending a response with empty answer", err)
+		verbosef("DNS query returned: %v, sending a response with empty answer", err)
 		// do not abort here, continue on and send a reply with no answer
 	}
 
@@ -272,7 +272,7 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 			var err error
 			ips, err = net.DefaultResolver.LookupIP(ctx, "ip4", question.Name)
 			if err != nil {
-				return nil, fmt.Errorf("the default resolver said: %w", err)
+				return nil, fmt.Errorf("for an A record the default resolver said: %w", err)
 			}
 		}
 
@@ -291,7 +291,7 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 	case dns.TypeAAAA:
 		ips, err := net.DefaultResolver.LookupIP(ctx, "ip6", question.Name)
 		if err != nil {
-			return nil, fmt.Errorf("the default resolver said: %w", err)
+			return nil, fmt.Errorf("for an AAAA record the default resolver said (AAAA record): %w", err)
 		}
 
 		verbosef("resolved %v to %v with default resolver", question.Name, ips)

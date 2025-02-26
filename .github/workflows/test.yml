@@ -10,15 +10,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Apt
-        run: sudo apt install -y socat openjdk-21-jdk-headless openjdk-21-jre-headless
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: dnsutils socat openjdk-21-jdk-headless openjdk-21-jre-headless
+          version: 1.0
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: stable
 
-      - name: Run
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Build
+        run: go build
+
+      - name: Test
         run: go test
+
+      - name: Install
+        run: |
+          go install
+          sudo setcap 'cap_net_admin=ep cap_sys_admin=ep cap_dac_override=ep' $(which httptap)
+
+      - name: End To End
+        run: go run ./testing/run-tests

@@ -37,11 +37,10 @@ type tcpMuxEntry struct {
 	handler tcpRequestHandlerFunc
 }
 
-// udpHandlerFunc is a function that receives UDP packets. Each call to w.Write
-// will send a UDP packet back to the subprocess that looks as if it comes from
-// the destination to which the original packet was sent. No matter what you put in
-// the source or destination address, the
-type udpHandlerFunc func(w udpResponder, packet *udpPacket)
+// udpHandlerFunc is a function that receives UDP connections. We use net.Conn rather than
+// net.PacketConn because the former matches io.Write and automatically sends the packet back
+// to the source from which it came.
+type udpHandlerFunc func(net.Conn)
 
 // udpMuxEntry is a pattern and corresponding handler, for use in the mux table for the udp stack
 type udpMuxEntry struct {
@@ -143,18 +142,18 @@ func (s *mux) notifyTCP(req TCPRequest) {
 
 // notifyUDP is called when a new packet arrives. It finds the first handler
 // with a pattern that matches the packet and delivers the packet to it
-func (s *mux) notifyUDP(w udpResponder, packet *udpPacket) {
+func (s *mux) notifyUDP(conn net.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for _, entry := range s.udpHandlers {
-		if patternMatches(entry.pattern, packet.dst) {
-			go entry.handler(w, packet)
+		if patternMatches(entry.pattern, conn.LocalAddr()) {
+			go entry.handler(conn)
 			return
 		}
 	}
 
-	verbosef("nobody listening for udp to %v, dropping!", packet.dst)
+	verbosef("nobody listening for udp to %v, dropping!", conn.LocalAddr())
 }
 
 // udpResponder is the interface for writing back UDP packets

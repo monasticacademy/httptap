@@ -32,7 +32,6 @@ import (
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
-	"gvisor.dev/gvisor/pkg/rawfile"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -234,7 +233,11 @@ func Main() error {
 		// is the same approach taken by docker's reexec package.
 
 		cmd := exec.Command("/proc/self/exe")
-		cmd.Args = append([]string{"httptap.stage.2", "--uid", strconv.Itoa(uid), "--gid", strconv.Itoa(gid)}, os.Args[1:]...)
+		cmd.Args = append([]string{
+			"httptap.stage.2",
+			"--uid", strconv.Itoa(uid),
+			"--gid", strconv.Itoa(gid)},
+			os.Args[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -320,9 +323,15 @@ func Main() error {
 	}
 	defer os.RemoveAll(tempdir)
 
+	// marshal certificate authority to PEM format
+	caPEM, err := certfile.MarshalPEM(ca.Certificate)
+	if err != nil {
+		return fmt.Errorf("error marshaling certificate authority to PEM format: %w", err)
+	}
+
 	// write certificate authority to PEM file
 	caPath := filepath.Join(tempdir, "ca-certificates.crt")
-	err = certfile.WritePEM(caPath, ca.Certificate)
+	err = os.WriteFile(caPath, caPEM, 0666)
 	if err != nil {
 		return fmt.Errorf("error writing certificate authority to temporary PEM file: %w", err)
 	}
@@ -330,7 +339,7 @@ func Main() error {
 
 	// write certificate authority to another common PEM file
 	caPath2 := filepath.Join(tempdir, "ca-bundle.crt")
-	err = certfile.WritePEM(caPath2, ca.Certificate)
+	err = os.WriteFile(caPath2, caPEM, 0666)
 	if err != nil {
 		return fmt.Errorf("error writing certificate authority to temporary PEM file: %w", err)
 	}
@@ -371,6 +380,8 @@ func Main() error {
 		return fmt.Errorf("error finding link for new tun device %q: %w", args.Tun, err)
 	}
 
+	verbosef("tun device has MTU %d", link.Attrs().MTU)
+
 	// bring the link up
 	err = netlink.LinkSetUp(link)
 	if err != nil {
@@ -391,22 +402,31 @@ func Main() error {
 		return fmt.Errorf("error assign address to tun device: %w", err)
 	}
 
-	// parse the subnet that we will route to the tunnel
-	catchall, err := netlink.ParseIPNet("0.0.0.0/0")
+	// parse the subnet corresponding to all globally routable ipv4 addresses
+	ip4Routable, err := netlink.ParseIPNet("0.0.0.0/0")
 	if err != nil {
 		return fmt.Errorf("error parsing global subnet: %w", err)
 	}
 
-	// parse the gateway that we will act as
-	gateway := net.ParseIP(args.Gateway)
-	if gateway == nil {
-		return fmt.Errorf("error parsing gateway: %v", args.Gateway)
+	// parse the subnet corresponding to all globally routable ipv6 addresses
+	ip6Routable, err := netlink.ParseIPNet("2000::/3")
+	if err != nil {
+		return fmt.Errorf("error parsing global subnet: %w", err)
 	}
 
-	// add a route that sends all traffic going anywhere to our local address
+	// add a route that sends all ipv4 traffic going anywhere to the tun device
 	err = netlink.RouteAdd(&netlink.Route{
-		Dst: catchall,
-		Gw:  gateway,
+		Dst:       ip4Routable,
+		LinkIndex: link.Attrs().Index,
+	})
+	if err != nil {
+		return fmt.Errorf("error creating default ipv4 route: %w", err)
+	}
+
+	// add a route that sends all ipv6 traffic going anywhere to the tun device
+	err = netlink.RouteAdd(&netlink.Route{
+		Dst:       ip6Routable,
+		LinkIndex: link.Attrs().Index,
 	})
 	if err != nil {
 		return fmt.Errorf("error creating default route: %w", err)
@@ -415,7 +435,7 @@ func Main() error {
 	// find the loopback device
 	loopback, err := netlink.LinkByName("lo")
 	if err != nil {
-		return fmt.Errorf("error finding link for loopback device %q: %w", args.Tun, err)
+		return fmt.Errorf("error finding link for loopback device: %w", err)
 	}
 
 	// bring the link up
@@ -474,6 +494,19 @@ func Main() error {
 			return fmt.Errorf("error setting up overlay: %w", err)
 		}
 		defer mount.Remove()
+	}
+
+	// overlay common certificate authority file locations
+	var caLocations = []string{"/etc/ssl/certs/ca-certificates.crt"}
+	for _, path := range caLocations {
+		if st, err := os.Lstat(path); err == nil && st.Mode().IsRegular() && !args.NoOverlay {
+			verbosef("overlaying %v...", path)
+			mount, err := overlay.Mount(filepath.Dir(path), overlay.File(filepath.Base(path), caPEM))
+			if err != nil {
+				return fmt.Errorf("error setting up overlay: %w", err)
+			}
+			defer mount.Remove()
+		}
 	}
 
 	// start printing to standard output if requested
@@ -610,8 +643,27 @@ func Main() error {
 	var mux mux
 
 	// handle DNS queries by calling net.Resolve
-	mux.HandleUDP(":53", func(w udpResponder, p *udpPacket) {
-		handleDNS(context.Background(), w, p.payload)
+	mux.HandleUDP(":53", func(conn net.Conn) {
+		defer conn.Close()
+		for {
+			// allocate new buffer on each iteration for now because different handlers for each packet
+			// are started asynchronously
+			payload := make([]byte, link.Attrs().MTU)
+			n, err := conn.Read(payload)
+			if err == net.ErrClosed {
+				verbose("UDP connection closed, exiting the read loop")
+				break
+			}
+			if err != nil {
+				verbosef("error reading udp packet with conn.ReadFrom: %v, ignoring", err)
+				continue
+			}
+
+			verbosef("read a UDP packet with %d bytes", n)
+
+			// handle the DNS query asynchronously
+			go handleDNS(context.Background(), conn, payload)
+		}
 	})
 
 	// create the transport that will proxy intercepted connections out to the world
@@ -697,7 +749,20 @@ func Main() error {
 		dst = strings.Replace(dst, specialHostName, "127.0.0.1", 1)
 		dst = strings.Replace(dst, specialHostIP, "127.0.0.1", 1)
 
-		proxyTCP(dst, conn)
+		proxyConn("tcp", dst, conn)
+	})
+
+	// listen for other UDP connections and proxy to the world
+	mux.HandleUDP("*", func(conn net.Conn) {
+		dst := conn.LocalAddr().String()
+
+		// In order for processes in the network namespace to reach "localhost" in the host's
+		// network they use "host.httptap.local" or 169.254.77.65. Here we route request to
+		// those addresses to 127.0.0.1.
+		dst = strings.Replace(dst, specialHostName, "127.0.0.1", 1)
+		dst = strings.Replace(dst, specialHostIP, "127.0.0.1", 1)
+
+		proxyConn("udp", dst, conn)
 	})
 
 	switch strings.ToLower(args.Stack) {
@@ -713,16 +778,10 @@ func Main() error {
 			TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol, icmp.NewProtocol4},
 		})
 
-		// get maximum transmission unit for the tun device
-		mtu, err := rawfile.GetMTU(args.Tun)
-		if err != nil {
-			return fmt.Errorf("error getting MTU: %w", err)
-		}
-
 		// create a link endpoint based on the TUN device
 		endpoint, err := fdbased.New(&fdbased.Options{
 			FDs: []int{int(tun.ReadWriteCloser.(*os.File).Fd())},
-			MTU: mtu,
+			MTU: uint32(link.Attrs().MTU),
 		})
 		if err != nil {
 			return fmt.Errorf("error creating link from tun device file descriptor: %v", err)
@@ -737,7 +796,7 @@ func Main() error {
 				r.ID().RemoteAddress, r.ID().RemotePort,
 				r.ID().LocalAddress, r.ID().LocalPort)
 
-			// send a SYN+ACK in response to the SYN
+			// dispatch the request via the mux
 			go mux.notifyTCP(&tcpRequest{r, new(waiter.Queue)})
 		})
 
@@ -750,7 +809,7 @@ func Main() error {
 				r.ID().RemoteAddress, r.ID().RemotePort,
 				r.ID().LocalAddress, r.ID().LocalPort)
 
-			// create an endpoint for responding to this packet
+			// create an endpoint for responding to this packet -- unlike TCP we do this right away because there is no SYN+ACK to decide whether to send
 			var wq waiter.Queue
 			ep, err := r.CreateEndpoint(&wq)
 			if err != nil {
@@ -758,39 +817,8 @@ func Main() error {
 				return
 			}
 
-			// TODO: set keepalive count, keepalive interval, receive buffer size, send buffer size, like this:
-			//   https://github.com/xjasonlyu/tun2socks/blob/main/core/tcp.go#L83
-
-			// create a convenience adapter so that we can read and write using a net.Conn
-			conn := gonet.NewUDPConn(&wq, ep)
-
-			// we must read packets in a new goroutine and return control back to netstack
-			go func() {
-				defer conn.Close()
-
-				for {
-					// allocate new buffer on each iteration for now because different handlers for each packet
-					// are started asynchronously
-					buf := make([]byte, mtu)
-					n, _, err := conn.ReadFrom(buf)
-					if err == net.ErrClosed {
-						verbose("UDP connection closed, exiting the read loop")
-						break
-					}
-					if err != nil {
-						verbosef("error reading udp packet with conn.ReadFrom: %v, ignoring", err)
-						continue
-					}
-
-					verbosef("read a UDP packet with %d bytes", n)
-
-					mux.notifyUDP(conn, &udpPacket{
-						conn.RemoteAddr(),
-						conn.LocalAddr(),
-						buf[:n],
-					})
-				}
-			}()
+			// dispatch the request via the mux
+			go mux.notifyUDP(gonet.NewUDPConn(&wq, ep))
 		})
 
 		// register the forwarders with the stack
@@ -844,7 +872,11 @@ func Main() error {
 
 	// launch the third stage in a second user namespace, this time with mappings reversed
 	cmd := exec.Command("/proc/self/exe")
-	cmd.Args = append([]string{"httptap.stage.3", "--verbose", "--uid", strconv.Itoa(args.UID), "--gid", strconv.Itoa(args.GID), "--"}, args.Command...)
+	cmd.Args = append([]string{
+		"httptap.stage.3",
+		"--uid", strconv.Itoa(args.UID),
+		"--gid", strconv.Itoa(args.GID), "--"},
+		args.Command...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -873,7 +905,7 @@ func Main() error {
 	if err != nil {
 		exitError, isExitError := err.(*exec.ExitError)
 		if isExitError {
-			return fmt.Errorf("subprocess exited with code %d", exitError.ExitCode())
+			os.Exit(exitError.ExitCode())
 		} else {
 			return fmt.Errorf("error running subprocess: %v", err)
 		}
