@@ -30,4 +30,7 @@ jobs:
         run: go install
 
       - name: End To End
-        run: go run ./testing/run-tests
+        run: |
+          sudo aa-unload
+          sudo systemctl stop apparmor
+          go run ./testing/run-tests
