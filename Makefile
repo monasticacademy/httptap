@@ -28,32 +28,32 @@ tcpdump-port-11223:
 
 # Setup tests
 
-setup-tests:
+setup:
 	go install
 
 # Test cases that run in CI
 
-test-echo: setup-tests
+test-echo:
 	httptap -- echo "hello"
 
 # Output:
 # hello
 
-test-curl: setup-tests
+test-curl:
 	httptap -- bash -c "curl -s https://example.com > out"
 
 # Output:
 # ---> GET https://example.com/
 # <--- 200 https://example.com/ (1256 bytes)
 
-test-curl-http: setup-tests
+test-curl-http:
 	httptap -- bash -c "curl -s http://example.com > out"
 
 # Output:
 # ---> GET http://example.com/
 # <--- 200 http://example.com/ (1256 bytes)
 
-test-curl-monasticacademy-http: setup-tests
+test-curl-monasticacademy-http:
 	httptap -- curl -Lso /dev/null http://monasticacademy.org
 
 # Output:
@@ -64,14 +64,14 @@ test-curl-monasticacademy-http: setup-tests
 # ---> GET https://www.monasticacademy.org/
 # <--- 200 https://www.monasticacademy.org/ (31955 bytes)
 
-test-curl-pre-resolved-https: setup-tests
+test-curl-pre-resolved-https:
 	httptap -- bash -c "curl -s --resolve example.com:443:$(shell dig +short example.com | head -n 1) https://example.com > out"
 
 # Output:
 # ---> GET https://example.com/
 # <--- 200 https://example.com/ (1256 bytes)
 
-test-curl-pre-resolved-http: setup-tests
+test-curl-pre-resolved-http:
 	httptap -- bash -c "curl -s --resolve example.com:80:$(shell dig +short example.com | head -n 1) http://example.com > out"
 
 # Output:
@@ -85,7 +85,7 @@ test-curl-ipv6:
 # ---> GET https://ipv6.google.com/
 # <--- 200 https://ipv6.google.com/ (18791 bytes)
 
-test-netcat: setup-tests
+test-netcat:
 	httptap -- \
 		bash -c "printf 'GET / HTTP/1.1\r\nHOST: example.com\r\nUser-Agent: nc\r\n\r\n' \
 		| nc example.com 80 \
@@ -96,7 +96,7 @@ test-netcat: setup-tests
 # ---> GET http://example.com/
 # <--- 200 http://example.com/ (1256 bytes)
 
-test-netcat-pre-resolved: setup-tests
+test-netcat-pre-resolved:
 	httptap -- \
 		bash -c "printf 'GET / HTTP/1.1\r\nHOST: example.com\r\nUser-Agent: nc\r\n\r\n' \
 		| nc $(shell dig +short example.com | head -n 1) 80 \
@@ -107,20 +107,20 @@ test-netcat-pre-resolved: setup-tests
 # ---> GET http://example.com/
 # <--- 200 http://example.com/ (1256 bytes)
 
-test-wget: setup-tests
+test-wget:
 	./testing/httptap_test wget -qO - https://example.com
 
 # Output:
 # ---> GET https://example.com/
 # <--- 200 https://example.com/ (1256 bytes)
 
-test-udp-11223: setup-tests
+test-udp-11223:
 	httptap -- bash -c "echo 'hello udp' | socat udp4:1.2.3.4:11223 - "
 
-test-udp-11223-two-udp-packets: setup-tests
+test-udp-11223-two-udp-packets:
 	httptap -- bash -c "echo 'hello udp' | socat udp4:1.2.3.4:11223 - ; echo 'hello again udp' | socat udp4:1.2.3.4:11223 - "
 
-test-socat-dns: setup-tests
+test-socat-dns:
 	httptap -- bash -c "echo cfc9 0100 0001 0000 0000 0000 0a64 7563 6b64 7563 6b67 6f03 636f 6d00 0001 0001 | xxd -p -r | socat udp4:1.1.1.1:53 - | xxd"
 
 # Output:
@@ -129,28 +129,28 @@ test-socat-dns: setup-tests
 # 00000020: 0a64 7563 6b64 7563 6b67 6f03 636f 6d00  .duckduckgo.com.
 # 00000030: 0001 0001 0000 0e10 0004 3495 f627       ..........4..'
 
-test-dig: setup-tests
+test-dig:
 	./testing/httptap_test dig +short -t a monasticacademy.org
 
-test-dig-cloudflare: setup-tests
+test-dig-cloudflare:
 	./testing/httptap_test dig +short -t a monasticacademy.org @1.1.1.1
 
 disabled-test-http3:
 	./testing/httptap_test go run ./testing/http3get https://www.google.com
 
-test-nslookup: setup-tests
+test-nslookup:
 	nslookup google.com | grep -A 10000 answer | grep Address > expected
 	httptap -- bash -c "nslookup google.com | grep -A 10000 answer | grep Address > actual"
 	diff actual expected
 
 # should not generate extraneous error messages
-test-nonexistent-domain: setup-tests
+test-nonexistent-domain:
 	./testing/httptap_test curl -qs https://nonexistent.monasticacademy.org
 
 # Output:
 # httptap exited with code 6
 
-test-java: setup-tests
+test-java:
 	javac testing/java/Example.java
 	httptap -- java -cp testing/java Example 2>1 | grep -v JAVA_OPTIONS
 
@@ -158,7 +158,7 @@ test-java: setup-tests
 # ---> GET https://example.com/
 # <--- 200 https://example.com/ (1256 bytes)
 
-test-doh: setup-tests
+test-doh:
 	./testing/httptap_test curl -s --doh-url https://cloudflare-dns.com/dns-query https://www.example.com
 
 # Output:
@@ -169,21 +169,21 @@ test-doh: setup-tests
 # ---> GET https://www.example.com/
 # <--- 200 https://www.example.com/ (1256 bytes)
 
-test-node: setup-tests
+test-node:
 	./testing/httptap_test node testing/js/get.js
 
 # Output:
 # ---> GET https://www.example.com/
 # <--- 200 https://www.example.com/ (1256 bytes)
 
-test-deno: setup-tests
+test-deno:
 	./testing/httptap_test deno --allow-net testing/ts/get.ts
 
 # Output:
 # ---> GET https://example.com/
 # <--- 200 https://example.com/ (1256 bytes)
 
-not-working-test-bun: setup-tests
+not-working-test-bun:
 	./testing/httptap_test bun testing/ts/get.ts
 
 # Output:
@@ -191,7 +191,7 @@ not-working-test-bun: setup-tests
 # <--- 200 https://example.com/ (1256 bytes)
 
 # Test running httptap inside itself
-not-working-test-self: setup-tests
+not-working-test-self:
 	httptap -- httptap curl https://www.example.com
 
 # Test HAR output
@@ -208,24 +208,24 @@ test-har:
 
 # These tests are currently broken
 
-manual-test-nonroot-user: setup-tests
+manual-test-nonroot-user:
 	./testing/httptap_test --user $(USER) -- bash -norc
 
 # these tests require things that I do not want to install into github actions
 
-manual-test-gcloud: setup-tests
+manual-test-gcloud:
 	./testing/httptap_test gcloud compute instances list
 
 # Test running inside sudo
 
-test-sudo: setup-tests
+test-sudo:
 	go build -o /tmp/httptap
 	sudo /tmp/httptap echo "hello"
 
 # Output:
 # hello
 
-test-sudo-no-new-user-namespace: setup-tests
+test-sudo-no-new-user-namespace:
 	go build -o /tmp/httptap
 	sudo /tmp/httptap --no-new-user-namespace -- curl -so out https://www.example.com
 
@@ -257,7 +257,7 @@ test-sudo-setcap-curl:
 
 # Docker-based tests
 
-manual-test-dockerized-ubuntu: setup-tests
+manual-test-dockerized-ubuntu:
 	mkdir -p .build
 	go build -o .build/httptap
 	docker run \
@@ -271,7 +271,7 @@ manual-test-dockerized-ubuntu: setup-tests
 		ubuntu \
 		.build/httptap --no-overlay -- curl -so out https://www.example.com
 
-manual-test-dockerized-alpine: setup-tests
+manual-test-dockerized-alpine:
 	mkdir -p .build
 	CGO_ENABLED=0 go build -o .build/httptap
 	docker run \
@@ -285,7 +285,7 @@ manual-test-dockerized-alpine: setup-tests
 		alpine/curl \
 		.build/httptap --no-overlay -- curl -so out https://www.example.com
 
-manual-test-dockerized-distroless: setup-tests
+manual-test-dockerized-distroless:
 	mkdir -p .build
 	CGO_ENABLED=0 go build -o .build/httptap
 	CGO_ENABLED=0 go build -o .build/hi ./testing/hello
