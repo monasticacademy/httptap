@@ -167,6 +167,15 @@ test-java:
 # ---> GET https://example.com/
 # <--- 200 https://example.com/ (1256 bytes)
 
+test-go:
+	./testing/httptap_test go run ./testing/httpget
+
+# Output:
+# ---> GET https://monasticacademy.com/
+# <--- 308 https://monasticacademy.com/ (15 bytes)
+# ---> GET https://www.monasticacademy.org/
+# <--- 200 https://www.monasticacademy.org/ (31955 bytes)
+
 test-doh:
 	./testing/httptap_test curl -s --doh-url https://cloudflare-dns.com/dns-query https://www.example.com
 
