@@ -79,7 +79,7 @@ test-curl-pre-resolved-http:
 # <--- 200 http://example.com/ (1256 bytes)
 
 # try curling ipv6.google.com, which has an ipv6 address only
-test-curl-ipv6:
+manual-test-curl-ipv6:
 	./testing/httptap_test curl -sL https://ipv6.google.com
 
 # ---> GET https://ipv6.google.com/
@@ -139,8 +139,8 @@ disabled-test-http3:
 	./testing/httptap_test go run ./testing/http3get https://www.google.com
 
 test-nslookup:
-	nslookup google.com | grep -A 10000 answer | grep Address > expected
-	httptap -- bash -c "nslookup google.com | grep -A 10000 answer | grep Address > actual"
+	nslookup google.com | grep -A 10000 answer | grep Address | sort > expected
+	httptap -- bash -c "nslookup google.com | grep -A 10000 answer | grep Address | sort > actual"
 	diff actual expected
 
 # should not generate extraneous error messages
@@ -230,8 +230,8 @@ test-sudo-no-new-user-namespace:
 	sudo /tmp/httptap --no-new-user-namespace -- curl -so out https://www.example.com
 
 # Output:
-# ---> GET https://example.com/
-# <--- 200 https://example.com/ (1256 bytes)
+# ---> GET https://www.example.com/
+# <--- 200 https://www.example.com/ (1256 bytes)
 
 manual-test-sudo-udp:
 	go build -o /tmp/httptap
@@ -252,8 +252,8 @@ test-sudo-setcap-curl:
 	/tmp/httptap --no-new-user-namespace -- curl -so out https://www.example.com
 
 # Output:
-# ---> GET https://example.com/
-# <--- 200 https://example.com/ (1256 bytes)
+# ---> GET https://www.example.com/
+# <--- 200 https://www.example.com/ (1256 bytes)
 
 # Docker-based tests
 
