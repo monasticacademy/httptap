@@ -20,5 +20,14 @@ jobs:
         with:
           go-version: stable
 
-      - name: Run
+      - name: Build
+        run: go build
+
+      - name: Test
         run: go test
+
+      - name: Install
+        run: go install
+
+      - name: End To End
+        run: go run ./testing/run-tests
