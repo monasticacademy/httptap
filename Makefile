@@ -120,14 +120,14 @@ test-udp-11223:
 test-udp-11223-two-udp-packets:
 	httptap -- bash -c "echo 'hello udp' | socat udp4:1.2.3.4:11223 - ; echo 'hello again udp' | socat udp4:1.2.3.4:11223 - "
 
-test-socat-dns:
+flaky-test-socat-dns:
 	httptap -- bash -c "echo cfc9 0100 0001 0000 0000 0000 0a64 7563 6b64 7563 6b67 6f03 636f 6d00 0001 0001 | xxd -p -r | socat udp4:1.1.1.1:53 - | xxd"
 
 # Output:
 # 00000000: cfc9 8100 0001 0001 0000 0000 0a64 7563  .............duc
 # 00000010: 6b64 7563 6b67 6f03 636f 6d00 0001 0001  kduckgo.com.....
 # 00000020: 0a64 7563 6b64 7563 6b67 6f03 636f 6d00  .duckduckgo.com.
-# 00000030: 0001 0001 0000 0e10 0004 3495 f627       ..........4..'
+# 00000030: 0001 0001 0000 0e10 0004 3495 f627       ..........4.*.'
 
 test-dig:
 	./testing/httptap_test dig +short -t a monasticacademy.org
