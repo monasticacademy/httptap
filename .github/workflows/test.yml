@@ -31,5 +31,4 @@ jobs:
 
       - name: End To End
         run: |
-          sudo aa-teardown || true
-          go run ./testing/run-tests
+          sudo go run ./testing/run-tests
