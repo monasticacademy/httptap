@@ -162,13 +162,15 @@ func errorf(fmt string, parts ...interface{}) {
 func Main() error {
 	ctx := context.Background()
 	var args struct {
-		Verbose            bool     `arg:"-v,--verbose,env:HTTPTAP_VERBOSE"`
-		NoNewUserNamespace bool     `arg:"--no-new-user-namespace,env:HTTPTAP_NO_NEW_USER_NAMESPACE" help:"do not create a new user namespace (must be run as root)"`
-		Stderr             bool     `arg:"env:HTTPTAP_LOG_TO_STDERR" help:"log to standard error (default is standard out)"`
-		Tun                string   `default:"httptap" help:"name of the TUN device that will be created"`
-		Subnet             string   `default:"10.1.1.100/24" help:"IP address of the network interface that the subprocess will see"`
-		Gateway            string   `default:"10.1.1.1" help:"IP address of the gateway that intercepts and proxies network packets"`
-		WebUI              string   `arg:"env:HTTPTAP_WEB_UI" help:"address and port to serve API on"`
+		Verbose            bool   `arg:"-v,--verbose,env:HTTPTAP_VERBOSE"`
+		NoNewUserNamespace bool   `arg:"--no-new-user-namespace,env:HTTPTAP_NO_NEW_USER_NAMESPACE" help:"do not create a new user namespace (must be run as root)"`
+		Stderr             bool   `arg:"env:HTTPTAP_LOG_TO_STDERR" help:"log to standard error (default is standard out)"`
+		Tun                string `default:"httptap" help:"name of the TUN device that will be created"`
+		Subnet             string `default:"10.1.1.100/24" help:"IP address of the network interface that the subprocess will see"`
+		Gateway            string `default:"10.1.1.1" help:"IP address of the gateway that intercepts and proxies network packets"`
+		WebUI              string `arg:"env:HTTPTAP_WEB_UI" help:"address and port to serve API on"`
+		UID                int
+		GID                int
 		User               string   `help:"run command as this user (username or id)"`
 		NoOverlay          bool     `arg:"--no-overlay,env:HTTPTAP_NO_OVERLAY" help:"do not mount any overlay filesystems"`
 		Stack              string   `arg:"env:HTTPTAP_STACK" default:"gvisor" help:"which tcp implementation to use: 'gvisor' or 'homegrown'"`
@@ -194,8 +196,29 @@ func Main() error {
 	isVerbose = args.Verbose
 
 	// first we re-exec ourselves in a new user namespace
-	if os.Args[0] != "/proc/self/exe" && !args.NoNewUserNamespace {
-		verbosef("re-execing in a new user namespace...")
+	if !strings.HasPrefix(os.Args[0], "httptap.stage.") && !args.NoNewUserNamespace {
+		verbosef("at first stage, launching second stage in a new user namespace...")
+
+		// Decide which user and group we should later switch to. We must do this before creating the user
+		// namespace because then we will not know which user we were originally launched by.
+		uid := os.Geteuid()
+		gid := os.Getegid()
+		if args.User != "" {
+			u, err := user.Lookup(args.User)
+			if err != nil {
+				return fmt.Errorf("error looking up user %q: %w", args.User, err)
+			}
+
+			uid, err = strconv.Atoi(u.Uid)
+			if err != nil {
+				return fmt.Errorf("error parsing user id %q as a number: %w", u.Uid, err)
+			}
+
+			gid, err = strconv.Atoi(u.Gid)
+			if err != nil {
+				return fmt.Errorf("error parsing group id %q as a number: %w", u.Gid, err)
+			}
+		}
 
 		// Here we move to a new user namespace, which is an unpriveleged operation, and which
 		// allows us to do everything else without being root.
@@ -210,7 +233,11 @@ func Main() error {
 		// is the same approach taken by docker's reexec package.
 
 		cmd := exec.Command("/proc/self/exe")
-		cmd.Args = append([]string{"/proc/self/exe"}, os.Args[1:]...)
+		cmd.Args = append([]string{
+			"httptap.stage.2",
+			"--uid", strconv.Itoa(uid),
+			"--gid", strconv.Itoa(gid)},
+			os.Args[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -240,7 +267,48 @@ func Main() error {
 		return nil
 	}
 
-	verbosef("running assuming we are in a user namespace...")
+	if os.Args[0] == "httptap.stage.3" {
+		verbose("at third stage...")
+
+		// there are three (!) user/group IDs for a process: the real, effective, and saved
+		// they have the purpose of allowing the process to go "back" to them
+		// here we set just the effective, which, when you are root, sets all three
+
+		if args.GID != 0 {
+			verbosef("switching to gid %d", args.GID)
+			err := unix.Setgid(args.GID)
+			if err != nil {
+				return fmt.Errorf("error switching to group %v: %w", args.GID, err)
+			}
+		}
+
+		if args.UID != 0 {
+			verbosef("switching to uid %d", args.UID)
+			err := unix.Setuid(args.UID)
+			if err != nil {
+				return fmt.Errorf("error switching to user %v: %w", args.UID, err)
+			}
+		}
+
+		verbosef("third stage now in uid %d, gid %d, launching final subprocess...", unix.Getuid(), unix.Getgid())
+
+		// launch the command that the user originally requested
+		cmd := exec.Command(args.Command[0])
+		cmd.Args = args.Command
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exiterr.ExitCode())
+		}
+		if err != nil {
+			return fmt.Errorf("error launching final subprocess from third stage: %w", err)
+		}
+		return nil
+	}
+
+	verbosef("at second stage, creating certificate authority...")
 
 	// generate a root certificate authority
 	ca, err := certin.NewCert(nil, certin.Request{CN: "root CA", IsCA: true})
@@ -441,40 +509,6 @@ func Main() error {
 		}
 	}
 
-	// switch user and group if requested
-	if args.User != "" {
-		u, err := user.Lookup(args.User)
-		if err != nil {
-			return fmt.Errorf("error looking up user %q: %w", args.User, err)
-		}
-
-		uid, err := strconv.Atoi(u.Uid)
-		if err != nil {
-			return fmt.Errorf("error parsing user id %q as a number: %w", u.Uid, err)
-		}
-
-		gid, err := strconv.Atoi(u.Gid)
-		if err != nil {
-			return fmt.Errorf("error parsing group id %q as a number: %w", u.Gid, err)
-		}
-
-		// there are three (!) user/group IDs for a process: the real, effective, and saved
-		// they have the purpose of allowing the process to go "back" to them
-		// here we set just the effective, which, when you are root, sets all three
-
-		err = unix.Setgid(gid)
-		if err != nil {
-			return fmt.Errorf("error switching to group %q (gid %v): %w", args.User, gid, err)
-		}
-
-		err = unix.Setuid(uid)
-		if err != nil {
-			return fmt.Errorf("error switching to user %q (uid %v): %w", args.User, uid, err)
-		}
-
-		verbosef("now in uid %d, gid %d", unix.Getuid(), unix.Getgid())
-	}
-
 	// start printing to standard output if requested
 	httpcalls, _ := listenHTTP()
 	go func() {
@@ -596,18 +630,6 @@ func Main() error {
 	}
 
 	verbose("running subcommand now ================")
-
-	// launch a subprocess -- we are already in the network namespace so nothing special here
-	cmd := exec.Command(args.Command[0])
-	cmd.Args = args.Command
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = env
-	err = cmd.Start()
-	if err != nil {
-		return fmt.Errorf("error starting subprocess: %w", err)
-	}
 
 	// create a goroutine to facilitate sending packets to the process
 	toSubprocess := make(chan []byte, 1000)
@@ -844,6 +866,41 @@ func Main() error {
 
 	default:
 		return fmt.Errorf("invalid stack %q; valid choices are 'gvisor' or 'homegrown'", args.Stack)
+	}
+
+	verbosef("launching third stage targetting uid %d, gid %d...", args.UID, args.GID)
+
+	// launch the third stage in a second user namespace, this time with mappings reversed
+	cmd := exec.Command("/proc/self/exe")
+	cmd.Args = append([]string{
+		"httptap.stage.3",
+		"--uid", strconv.Itoa(args.UID),
+		"--gid", strconv.Itoa(args.GID), "--"},
+		args.Command...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = env
+
+	if !args.NoNewUserNamespace {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Cloneflags: syscall.CLONE_NEWUSER,
+			UidMappings: []syscall.SysProcIDMap{{
+				ContainerID: args.UID,
+				HostID:      0,
+				Size:        1,
+			}},
+			GidMappings: []syscall.SysProcIDMap{{
+				ContainerID: args.GID,
+				HostID:      0,
+				Size:        1,
+			}},
+		}
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("error starting third stage subprocess: %w", err)
 	}
 
 	// wait for the subprocess to complete
