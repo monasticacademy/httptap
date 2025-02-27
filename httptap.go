@@ -14,6 +14,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -159,10 +160,22 @@ func errorf(fmt string, parts ...interface{}) {
 	errorColor.Printf(fmt, parts...)
 }
 
+func printVersion() {
+	version := "unknown"
+
+	buildInfo, ok := debug.ReadBuildInfo()
+	if ok && buildInfo.Main.Version != "" {
+		version = buildInfo.Main.Version
+	}
+
+	fmt.Printf("Version: %s\n", version)
+}
+
 func Main() error {
 	ctx := context.Background()
 	var args struct {
 		Verbose            bool   `arg:"-v,--verbose,env:HTTPTAP_VERBOSE"`
+		Version            bool   `arg:"-V,--version" help:"print version information"`
 		NoNewUserNamespace bool   `arg:"--no-new-user-namespace,env:HTTPTAP_NO_NEW_USER_NAMESPACE" help:"do not create a new user namespace (must be run as root)"`
 		Stderr             bool   `arg:"env:HTTPTAP_LOG_TO_STDERR" help:"log to standard error (default is standard out)"`
 		Tun                string `default:"httptap" help:"name of the TUN device that will be created"`
@@ -185,6 +198,11 @@ func Main() error {
 	args.HTTPPorts = []int{80}
 	args.HTTPSPorts = []int{443}
 	arg.MustParse(&args)
+
+	if args.Version {
+		printVersion()
+		return nil
+	}
 
 	if len(args.Command) == 0 {
 		args.Command = []string{"/bin/sh"}

@@ -40,7 +40,7 @@ require (
 	github.com/miekg/dns v1.1.62
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/vishvananda/netlink v1.3.0
-	github.com/vishvananda/netns v0.0.4
+	github.com/vishvananda/netns v0.0.4 // indirect
 	golang.org/x/sys v0.29.0
 	golang.org/x/time v0.5.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20240928194204-917bbae826a0
