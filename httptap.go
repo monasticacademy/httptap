@@ -96,7 +96,6 @@ func Main() error {
 		Tun                string `default:"httptap" help:"name of the TUN device that will be created"`
 		Subnet             string `default:"10.1.1.100/24" help:"IP address of the network interface that the subprocess will see"`
 		Gateway            string `default:"10.1.1.1" help:"IP address of the gateway that intercepts and proxies network packets"`
-		WebUI              string `arg:"env:HTTPTAP_WEB_UI" help:"address and port to serve API on"`
 		UID                int
 		GID                int
 		User               string   `help:"run command as this user (username or id)"`
@@ -501,50 +500,6 @@ func Main() error {
 				dnsRespColor.Printf("<--- %s\n", strings.Join(q.Answers(), ", "))
 			}
 		})
-	}
-
-	// start a web server if requested
-	if args.WebUI != "" {
-		// TODO: open listener first so that we can check that it works before proceeding
-		go func() {
-			http.HandleFunc("/api/calls", func(w http.ResponseWriter, r *http.Request) {
-				verbose("at /api/calls")
-
-				// listen for HTTP request/response pairs intercepted by the proxy
-				ch, history := listenHTTP()
-				_ = history
-
-				// TODO: do not set cors headers like this by default
-				w.Header().Set("Access-Control-Allow-Origin", "*")
-				w.Header().Set("Access-Control-Expose-Headers", "Content-Type")
-				w.Header().Set("Content-Type", "text/event-stream")
-				w.Header().Set("Content-Encoding", "none") // this is critical for the nextjs dev server to proxy this correctly
-				w.Header().Set("Cache-Control", "no-cache")
-				w.Header().Set("Connection", "keep-alive")
-				w.WriteHeader(http.StatusOK)
-
-				f := w.(http.Flusher)
-
-			outer:
-				for {
-					select {
-					case httpcall := <-ch:
-						fmt.Fprint(w, "data: ")
-						json.NewEncoder(w).Encode(httpcall)
-						fmt.Fprint(w, "\n\n")
-						f.Flush()
-					case <-r.Context().Done():
-						break outer
-					}
-				}
-			})
-
-			log.Printf("listening on %v ...", args.WebUI)
-			err := http.ListenAndServe(args.WebUI, nil)
-			if err != nil {
-				log.Fatal(err) // TODO: gracefully shut down the whole app
-			}
-		}()
 	}
 
 	// set up environment variables for the subprocess
