@@ -14,3 +14,5 @@
 dist/
 good-examples/
 dumps/
+actual
+expected
