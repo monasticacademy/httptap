@@ -8,13 +8,7 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
-// UDP packet
-
-type udpPacket struct {
-	src     net.Addr
-	dst     net.Addr
-	payload []byte
-}
+// This file contains a "homegrown" TCP stack, which is only used with the --stack=homegrown command line argument.
 
 // udpStack parses UDP packets with gopacket and dispatches them through a mux
 type udpStack struct {

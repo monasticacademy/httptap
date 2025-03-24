@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -15,15 +16,16 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 )
 
-// TCP connection state
+// This file contains a "homegrown" TCP stack, which is only used with the --stack=homegrown command line argument.
 
+// TCPState is the state of a TCP connection
 type TCPState int
 
 const (
 	StateInit              TCPState = iota + 1
-	StateSynReceived                // means we have received a SYN and replied with a SYN+ACK, awaiting ACK from other side
+	StateSynReceived                // means we have received a SYN, replied with a SYN+ACK, and are awaiting an ACK from other side
 	StateConnected                  // means we have received at least one ACK from other side so can send and receive data
-	StateOtherSideFinished          // means we have received a FIN from other side and responded with FIN+ACK
+	StateOtherSideFinished          // means we have received a FIN from other side and have responded with FIN+ACK
 	StateFinished                   // means we have sent our own FIN and must not send any more data
 )
 
@@ -44,8 +46,18 @@ func (s TCPState) String() string {
 	}
 }
 
-// TCP Request
+// AddrPort is an IP address and a port number
+type AddrPort struct {
+	Addr net.IP
+	Port uint16
+}
 
+func (ap AddrPort) String() string {
+	return ap.Addr.String() + ":" + strconv.Itoa(int(ap.Port))
+}
+
+// TCPRequest represents a request by a remote host to initiate a TCP connection. The interface provides
+// a way for the application to decide whether or not to accept the connection.
 type TCPRequest interface {
 	// RemoteAddr is the IP address and port of the subprocess that initiated the connection
 	RemoteAddr() net.Addr
