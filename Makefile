@@ -36,12 +36,6 @@ run: clean
 install:
 	go install
 
-webui-sleep-forever: install
-	httptap --webui :5000 -- sleep infinity
-
-webui-curl-loop: install
-	httptap --webui :5000 -- bash -c "while true; do echo "curling..."; curl -s https://www.example.com > out; sleep 1; done"
-
 tcpdump-port-11223:
 	sudo tcpdump -i lo 'tcp port 11223'
 
