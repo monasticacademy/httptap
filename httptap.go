@@ -108,6 +108,7 @@ func Main() error {
 		HTTPSPorts         []int    `arg:"--https" help:"list of TCP ports to intercept HTTPS traffic on"`
 		Head               bool     `help:"whether to include HTTP headers in terminal output"`
 		Body               bool     `help:"whether to include HTTP payloads in terminal output"`
+		PrintDNS           bool     `arg:"--print-dns" help:"whether to print DNS queries and responses"`
 		Command            []string `arg:"positional"`
 	}
 	args.HTTPPorts = []int{80}
@@ -442,7 +443,7 @@ func Main() error {
 		}
 	}
 
-	// start printing to standard output if requested
+	// start printing HTTP calls to standard output
 	httpcalls, _ := listenHTTP()
 	go func() {
 		reqcolor := color.New(color.FgBlue, color.Bold)
@@ -489,6 +490,18 @@ func Main() error {
 			}
 		}
 	}()
+
+	// start printing DNS class to standard output
+	if args.PrintDNS {
+		dnsReqColor := color.New(color.FgBlue)
+		dnsRespColor := color.New(color.FgMagenta)
+		watchDNS(func(c *dnsCall) {
+			for _, q := range c.queries {
+				dnsReqColor.Printf("---> DNS %s (%s)\n", q.Query(), q.Type())
+				dnsRespColor.Printf("<--- %s\n", strings.Join(q.Answers(), ", "))
+			}
+		})
+	}
 
 	// start a web server if requested
 	if args.WebUI != "" {

@@ -73,7 +73,7 @@ test-root:
 
 # Test access to localhost
 test-localhost-http:
-	httptap -http 8080 -- curl -Lso /dev/null http://host.httptap.local:8080/text
+	httptap --http 8080 -- curl -Lso /dev/null http://host.httptap.local:8080/text
 
 # Output:
 # ---> GET http://host.httptap.local:8080/text
@@ -85,6 +85,16 @@ test-localhost-https:
 # Output:
 # ---> GET https://host.httptap.local:8443/text
 # <--- 200 https://host.httptap.local:8443/text (21 bytes)
+
+# Test access to localhost
+test-localhost-dns:
+	httptap --print-dns --http 8080 -- curl -Lso /dev/null http://host.httptap.local:8080/text
+
+# Output:
+# ---> DNS host.httptap.local. (A)
+# <--- 169.254.77.65
+# ---> GET http://host.httptap.local:8080/text
+# <--- 200 http://host.httptap.local:8080/text (21 bytes)
 
 test-curl:
 	httptap -- bash -c "curl -s https://example.com > out"

@@ -5,9 +5,74 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/miekg/dns"
 )
+
+// dnsCall is a summary of a dns request/response exposed to the application level observers
+type dnsCall struct {
+	queries []dnsQuery
+}
+
+// a dnsQuery is a query/response pair
+type dnsQuery interface {
+	Type() string
+	Query() string
+	Answers() []string
+}
+
+// dnsPairA is an A or AAAA query together with responses
+type dnsPairA struct {
+	typ     uint16
+	query   string
+	answers []net.IP
+}
+
+func (p dnsPairA) Type() string {
+	return dnsTypeCode(p.typ)
+}
+
+func (p dnsPairA) Query() string {
+	return p.query
+}
+
+func (p dnsPairA) Answers() []string {
+	var answers []string
+	for _, a := range p.answers {
+		answers = append(answers, a.String())
+	}
+	return answers
+}
+
+// dnsWatcher receives information about each intercepted DNS query, and the response provided
+type dnsWatcher func(*dnsCall)
+
+// the listeners waiting for HTTPCalls
+var dnsWatchers []dnsWatcher
+
+// the mutex that protects the above slice
+var dnsMu sync.Mutex
+
+// add a watcher that will called for each DNS request/response
+func watchDNS(w dnsWatcher) {
+	dnsMu.Lock()
+	defer dnsMu.Unlock()
+
+	dnsWatchers = append(dnsWatchers, w)
+}
+
+// call each DNS watcher
+func notifyDNSWatchers(call *dnsCall) {
+	dnsMu.Lock()
+	defer dnsMu.Unlock()
+
+	verbosef("notifying DNS watchers (%d query/response pairs)", len(call.queries))
+
+	for _, w := range dnsWatchers {
+		w(call)
+	}
+}
 
 // handle a DNS query payload here is the application-level UDP payload
 func handleDNS(ctx context.Context, w io.Writer, payload []byte) {
@@ -259,8 +324,10 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 
 	question := req.Question[0]
 	questionType := dnsTypeCode(question.Qtype)
-
 	verbosef("got dns request for %v (%v)", question.Name, questionType)
+
+	// the DNS call will be sent to watchers later
+	var call dnsCall
 
 	// handle the request ourselves
 	switch question.Qtype {
@@ -276,6 +343,12 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 			}
 		}
 
+		call.queries = append(call.queries, dnsPairA{
+			typ:     dns.TypeA,
+			query:   question.Name,
+			answers: ips,
+		})
+
 		verbosef("resolved %v to %v with default resolver", question.Name, ips)
 
 		var rrs []dns.RR
@@ -286,6 +359,10 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 			}
 			rrs = append(rrs, rr)
 		}
+
+		// notify DNS watchers of the request/response pairs
+		notifyDNSWatchers(&call)
+
 		return rrs, nil
 
 	case dns.TypeAAAA:
@@ -293,6 +370,12 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 		if err != nil {
 			return nil, fmt.Errorf("for an AAAA record the default resolver said (AAAA record): %w", err)
 		}
+
+		call.queries = append(call.queries, dnsPairA{
+			typ:     dns.TypeAAAA,
+			query:   question.Name,
+			answers: ips,
+		})
 
 		verbosef("resolved %v to %v with default resolver", question.Name, ips)
 
@@ -304,6 +387,10 @@ func handleDNSQuery(ctx context.Context, req *dns.Msg) ([]dns.RR, error) {
 			}
 			rrs = append(rrs, rr)
 		}
+
+		// notify DNS watchers of the request/response pairs
+		notifyDNSWatchers(&call)
+
 		return rrs, nil
 	}
 
