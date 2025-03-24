@@ -497,8 +497,8 @@ func Main() error {
 		dnsRespColor := color.New(color.FgMagenta)
 		watchDNS(func(c *dnsCall) {
 			for _, q := range c.queries {
-				dnsReqColor.Printf("--> Lookup %s (%s)\n", q.Query(), q.Type())
-				dnsRespColor.Printf("<-- %s\n", strings.Join(q.Answers(), ", "))
+				dnsReqColor.Printf("---> DNS %s (%s)\n", q.Query(), q.Type())
+				dnsRespColor.Printf("<--- %s\n", strings.Join(q.Answers(), ", "))
 			}
 		})
 	}
