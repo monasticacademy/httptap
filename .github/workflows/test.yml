@@ -40,4 +40,6 @@ jobs:
           sudo setcap 'cap_net_admin=ep cap_sys_admin=ep cap_dac_override=ep' $(which httptap)
 
       - name: End To End
-        run: go run ./testing/run-tests
+        run: go run ./testing/run-tests --tlscert testing/localhost.crt --tlskey testing/localhost.key
+        env:
+          SSL_CERT_FILE: root.crt

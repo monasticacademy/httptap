@@ -2,8 +2,6 @@
 .build/
 .vscode/
 *.crt
-*.pem
-*.key
 *.class
 *.har
 

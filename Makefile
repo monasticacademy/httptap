@@ -8,25 +8,25 @@ build:
 clean: force
 	rm -rf out
 
-setup:
+setup-tls:
 	go install github.com/joemiller/certin/cmd/certin@latest
-
-test:
-	go install
-	certin create root.key root.crt \
+	certin create testing/ca.key testing/ca.crt \
 		--is-ca=true \
 		--o HttptapTestCA \
 		--cn httptap-test-ca
-	certin create example.key example.crt \
-		--signer-key root.key \
-		--signer-cert root.crt \
-		--cn example.com \
-		--sans "example.com,www.example.com" \
+	certin create testing/localhost.key testing/localhost.crt \
+		--signer-key testing/ca.key \
+		--signer-cert testing/ca.crt \
+		--cn host.httptap.local \
+		--sans "host.httptap.local" \
 		--key-type "ecdsa-256"
-	SSL_CERT_FILE=root.crt \
+
+test:
+	go install
+	SSL_CERT_FILE=testing/ca.crt \
 		go run ./testing/run-tests \
-			--tlscert example.crt \
-			--tlskey example.key \
+			--tlscert testing/localhost.crt \
+			--tlskey testing/localhost.key \
 			--exclude '*ipv6*' '*sudo*' \
 			-- $(CASE)
 
@@ -83,8 +83,8 @@ test-localhost-https:
 	httptap --https 8443 -- curl -Lso /dev/null https://host.httptap.local:8443/text
 
 # Output:
-# ---> GET http://host.httptap.local:8080/text
-# <--- 200 http://host.httptap.local:8080/text (21 bytes)
+# ---> GET https://host.httptap.local:8443/text
+# <--- 200 https://host.httptap.local:8443/text (21 bytes)
 
 test-curl:
 	httptap -- bash -c "curl -s https://example.com > out"
