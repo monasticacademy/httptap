@@ -546,8 +546,10 @@ func Main() error {
 
 	verbose("running subcommand now ================")
 
-	// start a goroutine to process packets from the subprocess -- this will be killed
-	// when the subprocess completes
+	// start sending packets to the process
+	toSubprocess := make(chan []byte, 1000)
+	go copyToDevice(ctx, tun, toSubprocess)
+
 	verbosef("listening on %v", args.Tun)
 
 	// the application-level thing is the mux, which distributes new connections according to patterns
@@ -678,10 +680,6 @@ func Main() error {
 
 	switch strings.ToLower(args.Stack) {
 	case "homegrown":
-		// start sending packets to the process
-		toSubprocess := make(chan []byte, 1000)
-		go copyToDevice(ctx, tun, toSubprocess)
-
 		// instantiate the tcp and udp stacks
 		tcpstack := newTCPStack(&mux, toSubprocess)
 		udpstack := newUDPStack(&mux, toSubprocess)
