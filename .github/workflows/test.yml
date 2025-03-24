@@ -42,4 +42,4 @@ jobs:
       - name: End To End
         run: go run ./testing/run-tests --tlscert testing/localhost.crt --tlskey testing/localhost.key
         env:
-          SSL_CERT_FILE: root.crt
+          SSL_CERT_FILE: testing/ca.crt
