@@ -3,6 +3,7 @@
 .vscode/
 *.crt
 *.pem
+*.key
 *.class
 *.har
 
@@ -14,3 +15,5 @@
 dist/
 good-examples/
 dumps/
+actual
+expected

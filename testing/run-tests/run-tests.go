@@ -5,10 +5,13 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/alexflint/go-arg"
 	"github.com/gobwas/glob"
+	"github.com/joemiller/certin"
+	"github.com/monasticacademy/httptap/pkg/certfile"
 )
 
 type Case struct {
@@ -19,7 +22,9 @@ type Case struct {
 func Main() error {
 	var args struct {
 		Path    string `default:"Makefile"`
-		Pattern string `arg:"positional" default:"test-*"`
+		Pattern string `arg:"positional,env:PATTERN" default:"test-*"`
+		TLSCert string
+		TLSKey  string
 		Exclude []string
 		Verbose bool `arg:"-v,--verbose"`
 	}
@@ -85,6 +90,36 @@ outer:
 		}
 		selected = append(selected, c)
 	}
+
+	// create TLS certificate authority
+	ca, err := certin.NewCert(nil, certin.Request{CN: "root CA", IsCA: true})
+	if err != nil {
+		return fmt.Errorf("error creating root CA: %w", err)
+	}
+
+	// create a temporary directory
+	tempdir, err := os.MkdirTemp("", "")
+	if err != nil {
+		return fmt.Errorf("error creating temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	// marshal certificate authority to PEM format
+	caPEM, err := certfile.MarshalPEM(ca.Certificate)
+	if err != nil {
+		return fmt.Errorf("error marshaling certificate authority to PEM format: %w", err)
+	}
+
+	// write certificate authority to PEM file
+	caPath := filepath.Join(tempdir, "ca.crt")
+	err = os.WriteFile(caPath, caPEM, 0666)
+	if err != nil {
+		return fmt.Errorf("error writing certificate authority to temporary PEM file: %w", err)
+	}
+
+	// start the http server that many of the test cases use
+	go dummyHTTP(":8080")
+	go dummyHTTPS(":8443", args.TLSCert, args.TLSKey)
 
 	// run the cases
 	var failures int
