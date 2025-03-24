@@ -8,9 +8,27 @@ build:
 clean: force
 	rm -rf out
 
+setup-tls:
+	go install github.com/joemiller/certin/cmd/certin@latest
+	certin create testing/ca.key testing/ca.crt \
+		--is-ca=true \
+		--o HttptapTestCA \
+		--cn httptap-test-ca
+	certin create testing/localhost.key testing/localhost.crt \
+		--signer-key testing/ca.key \
+		--signer-cert testing/ca.crt \
+		--cn host.httptap.local \
+		--sans "host.httptap.local" \
+		--key-type "ecdsa-256"
+
 test:
 	go install
-	go run ./testing/run-tests --exclude '*ipv6*' '*sudo*'
+	SSL_CERT_FILE=testing/ca.crt \
+		go run ./testing/run-tests \
+			--tlscert testing/localhost.crt \
+			--tlskey testing/localhost.key \
+			--exclude '*ipv6*' '*sudo*' \
+			-- $(CASE)
 
 run: clean
 	httptap bash
@@ -26,11 +44,6 @@ webui-curl-loop: install
 
 tcpdump-port-11223:
 	sudo tcpdump -i lo 'tcp port 11223'
-
-# Setup tests
-
-setup:
-	go install
 
 # Test cases that run in CI
 
@@ -57,6 +70,21 @@ test-root:
 
 # Output:
 # 0
+
+# Test access to localhost
+test-localhost-http:
+	httptap -http 8080 -- curl -Lso /dev/null http://host.httptap.local:8080/text
+
+# Output:
+# ---> GET http://host.httptap.local:8080/text
+# <--- 200 http://host.httptap.local:8080/text (21 bytes)
+
+test-localhost-https:
+	httptap --https 8443 -- curl -Lso /dev/null https://host.httptap.local:8443/text
+
+# Output:
+# ---> GET https://host.httptap.local:8443/text
+# <--- 200 https://host.httptap.local:8443/text (21 bytes)
 
 test-curl:
 	httptap -- bash -c "curl -s https://example.com > out"
