@@ -191,9 +191,6 @@ func Main() error {
 		err := cmd.Run()
 		// if the subprocess exited with an error code then do not print any
 		// extra information but do exit with the same code
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			os.Exit(exiterr.ExitCode())
-		}
 		if err != nil {
 			return fmt.Errorf("error re-executing ourselves in a new user namespace: %w", err)
 		}
@@ -232,9 +229,6 @@ func Main() error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			os.Exit(exiterr.ExitCode())
-		}
 		if err != nil {
 			return fmt.Errorf("error launching final subprocess from third stage: %w", err)
 		}
@@ -807,12 +801,7 @@ func Main() error {
 	// wait for the subprocess to complete
 	err = cmd.Wait()
 	if err != nil {
-		exitError, isExitError := err.(*exec.ExitError)
-		if isExitError {
-			os.Exit(exitError.ExitCode())
-		} else {
-			return fmt.Errorf("error running subprocess: %v", err)
-		}
+		return fmt.Errorf("error running subprocess: %w", err)
 	}
 	return nil
 }
@@ -822,6 +811,14 @@ func main() {
 	log.SetFlags(0)
 	err := Main()
 	if err != nil {
+		// if we exit due to a subprocess returning with non-zero exit code then do not
+		// print any extraneous output but do exit with the same code
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.ExitCode())
+		}
+
+		// for any other kind of error, print the error and exit with code 1
 		log.Fatal(err)
 	}
 }
