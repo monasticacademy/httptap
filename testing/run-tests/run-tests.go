@@ -66,12 +66,12 @@ func Main() error {
 			inOutput = true
 		} else if pos > 0 && cur != nil {
 			cur.Output = strings.TrimSpace(line[pos+len("# Output:"):])
-		} else if strings.HasPrefix(line, "# ") && inOutput && cur != nil {
+		} else if strings.HasPrefix(line, "#") && inOutput && cur != nil {
 			if cur.Output != "" {
 				cur.Output += "\n"
 			}
-			cur.Output += line[2:]
-		} else if !strings.HasPrefix(line, "# ") {
+			cur.Output += strings.TrimSpace(strings.TrimPrefix(line, "#"))
+		} else if !strings.HasPrefix(line, "#") {
 			inOutput = false
 		}
 	}
