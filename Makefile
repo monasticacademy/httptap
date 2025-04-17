@@ -190,9 +190,19 @@ disabled-test-http3:
 	./testing/httptap_test go run ./testing/http3get https://www.google.com
 
 test-nslookup:
-	nslookup google.com | grep -A 10000 answer | grep Address | sort > expected
-	httptap -- bash -c "nslookup google.com | grep -A 10000 answer | grep Address | sort > actual"
-	diff actual expected
+	httptap -- nslookup google.com | sed 's/Address: .*/Address: x/g'
+
+# Output:
+# ;; Got recursion not available from 10.1.1.1
+# Server:		10.1.1.1
+# Address:	10.1.1.1#53
+#
+# Non-authoritative answer:
+# Name:	google.com
+# Address: x
+# ;; Got recursion not available from 10.1.1.1
+# Name:	google.com
+# Address: x
 
 # should not generate extraneous error messages
 test-nonexistent-domain:
