@@ -113,7 +113,7 @@ test-curl-monasticacademy-http:
 # ---> GET https://monasticacademy.org/
 # <--- 308 https://monasticacademy.org/ (15 bytes)
 # ---> GET https://www.monasticacademy.org/
-# <--- 200 https://www.monasticacademy.org/ (31662 bytes)
+# <--- 200 https://www.monasticacademy.org/ (30260 bytes)
 
 test-curl-pre-resolved-https:
 	httptap -- bash -c "curl -s --resolve example.com:443:$(shell dig +short example.com | head -n 1) https://example.com > out"
@@ -208,7 +208,7 @@ test-python:
 # ---> GET https://monasticacademy.org/
 # <--- 308 https://monasticacademy.org/ (15 bytes)
 # ---> GET https://www.monasticacademy.org/
-# <--- 200 https://www.monasticacademy.org/ (31662 bytes)
+# <--- 200 https://www.monasticacademy.org/ (30260 bytes)
 
 test-java:
 	javac testing/java/Example.java
@@ -225,7 +225,7 @@ test-go:
 # ---> GET https://monasticacademy.com/
 # <--- 308 https://monasticacademy.com/ (15 bytes)
 # ---> GET https://www.monasticacademy.org/
-# <--- 200 https://www.monasticacademy.org/ (31662 bytes)
+# <--- 200 https://www.monasticacademy.org/ (30260 bytes)
 
 test-doh:
 	./testing/httptap_test curl -s --doh-url https://cloudflare-dns.com/dns-query https://www.example.com
@@ -273,7 +273,7 @@ test-har:
 # ---> GET https://monasticacademy.org/
 # <--- 308 https://monasticacademy.org/ (15 bytes)
 # ---> GET https://www.monasticacademy.org/
-# <--- 200 https://www.monasticacademy.org/ (31662 bytes)
+# <--- 200 https://www.monasticacademy.org/ (30260 bytes)
 
 # These tests require things that I do not want to install into github actions
 
