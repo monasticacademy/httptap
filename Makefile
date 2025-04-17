@@ -105,22 +105,22 @@ test-curl-http:
 # <--- 200 http://example.com/ (1256 bytes)
 
 test-curl-monasticacademy-http:
-	httptap -- curl -Lso /dev/null http://monasticacademy.org
+	httptap -- curl -Lso /dev/null http://monasticacademy.org | sed 's/[0-9]\+ bytes/x bytes/g'
 
 # Output:
 # ---> GET http://monasticacademy.org/
-# <--- 308 http://monasticacademy.org/ (14 bytes)
+# <--- 308 http://monasticacademy.org/ (x bytes)
 # ---> GET https://monasticacademy.org/
-# <--- 308 https://monasticacademy.org/ (15 bytes)
+# <--- 308 https://monasticacademy.org/ (x bytes)
 # ---> GET https://www.monasticacademy.org/
-# <--- 200 https://www.monasticacademy.org/ (30260 bytes)
+# <--- 200 https://www.monasticacademy.org/ (x bytes)
 
 test-curl-pre-resolved-https:
-	httptap -- bash -c "curl -s --resolve example.com:443:$(shell dig +short example.com | head -n 1) https://example.com > out"
+	httptap -- curl -Lso /dev/null --resolve example.com:443:$(shell dig +short example.com | head -n 1) https://example.com  | sed 's/[0-9]\+ bytes/x bytes/g'
 
 # Output:
 # ---> GET https://example.com/
-# <--- 200 https://example.com/ (1256 bytes)
+# <--- 200 https://example.com/ (x bytes)
 
 test-curl-pre-resolved-http:
 	httptap -- bash -c "curl -s --resolve example.com:80:$(shell dig +short example.com | head -n 1) http://example.com > out"
@@ -202,13 +202,13 @@ test-nonexistent-domain:
 # httptap exited with code 6
 
 test-python:
-	httptap -- python -c 'import requests; requests.get("https://monasticacademy.org")'
+	httptap -- python -c 'import requests; requests.get("https://monasticacademy.org")' | sed 's/[0-9]\+ bytes/x bytes/g'
 
 # Output:
 # ---> GET https://monasticacademy.org/
-# <--- 308 https://monasticacademy.org/ (15 bytes)
+# <--- 308 https://monasticacademy.org/ (x bytes)
 # ---> GET https://www.monasticacademy.org/
-# <--- 200 https://www.monasticacademy.org/ (30260 bytes)
+# <--- 200 https://www.monasticacademy.org/ (x bytes)
 
 test-java:
 	javac testing/java/Example.java
@@ -219,13 +219,13 @@ test-java:
 # <--- 200 https://example.com/ (1256 bytes)
 
 test-go:
-	./testing/httptap_test go run ./testing/httpget
+	./testing/httptap_test go run ./testing/httpget | sed 's/[0-9]\+ bytes/x bytes/g'
 
 # Output:
 # ---> GET https://monasticacademy.com/
-# <--- 308 https://monasticacademy.com/ (15 bytes)
+# <--- 308 https://monasticacademy.com/ (x bytes)
 # ---> GET https://www.monasticacademy.org/
-# <--- 200 https://www.monasticacademy.org/ (30260 bytes)
+# <--- 200 https://www.monasticacademy.org/ (x bytes)
 
 test-doh:
 	./testing/httptap_test curl -s --doh-url https://cloudflare-dns.com/dns-query https://www.example.com
@@ -265,15 +265,15 @@ not-working-test-self:
 
 # Test HAR output
 test-har:
-	httptap --dump-har out.har -- curl -Lso /dev/null https://monasticacademy.org
+	httptap --dump-har out.har -- curl -Lso /dev/null https://monasticacademy.org | sed 's/[0-9]\+ bytes/x bytes/g'
 	jq '.log.entries[] | del(.response.content.text, .request.headers, .response.headers, .timings, .time, .startedDateTime)' out.har > filtered.har
 	diff filtered.har testing/expected/monasticacademy.org.har
 
 # Output:
 # ---> GET https://monasticacademy.org/
-# <--- 308 https://monasticacademy.org/ (15 bytes)
+# <--- 308 https://monasticacademy.org/ (x bytes)
 # ---> GET https://www.monasticacademy.org/
-# <--- 200 https://www.monasticacademy.org/ (30260 bytes)
+# <--- 200 https://www.monasticacademy.org/ (x bytes)
 
 # These tests require things that I do not want to install into github actions
 
