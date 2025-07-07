@@ -184,6 +184,57 @@ The situation here is that in linux every network namespace automatically gets i
 
 As a workaround, the address 169.254.77.65 is hardcoded within httptap to route to 127.0.0.1.
 
+# Subprocesses that daemonize
+
+In linux, it is possible for a process to create subprocesses that stick around even when the original process exits. This is standard practice for daemons and also for GUI apps launched from the command line. If you run a process that daemonizes under httptap, the daemonized process will still be in httptap's network namespace, but you will need to use `--no-exit` to make sure that httptap keeps proxying and logging traffic even after the immediate subprocess exits. For example, here is visual studio code running within httptap:
+
+```bash
+$ httptap --no-exit -- code --ignore-certificate-errors .
+---> OPTIONS https://default.exp-tas.com/vscode/ab
+<--- 204 https://default.exp-tas.com/vscode/ab (0 bytes)
+---> GET https://default.exp-tas.com/vscode/ab
+<--- 304 https://default.exp-tas.com/vscode/ab (0 bytes)
+...
+```
+
+You will have to press ctrl+C to kill httptap once you exit vscode.
+
+In the above, without `--no-exit`, httptap would exit immediately after launching vscode. However, even though the subprocess launched by httptap has exited, that subprocess created a whole separate process tree before it did so. That process tree is the actual GUI app, and it is still pinned to the httptap network namespace. If httptap exits then the network namespace will continue to exist, and the GUI app will continue to run, but nobody will be reading packets sent to the TUN device that is only available network interface in that network namespace, and as a result the app will have no network connectivity. The workaround for this is the `--no-exit` flag that asks httptap to keep proxying network traffic even after the immediate subprocess exits.
+
+A more minimal example of this same phenomenon is:
+```bash
+$ httptap --no-exit -- setsid setsid curl http://httpbin.org/get
+---> GET http://httpbin.org/get
+<--- 200 http://httpbin.org/get (285 bytes)
+```
+
+Without the `--no-exit` flag, the above fails:
+```bash
+$ httptap -- setsid setsid curl http://httpbin.org/get
+curl: (6) Could not resolve host: httpbin.org
+```
+
+A python example that illustrates what syscalls are at play is:
+```bash
+$ $ httptap --no-exit -- python -c 'import os; import sys; import subprocess
+if os.fork(): sys.exit()
+os.setsid()
+if os.fork(): sys.exit()
+subprocess.run(["curl", "http://httpbin.org/get"])'
+---> GET http://httpbin.org/get
+<--- 200 http://httpbin.org/get (285 bytes)
+```
+
+Again, without `--no-exit`, the above fails:
+```bash
+$ httptap -- python -c 'import os; import sys; import subprocess
+if os.fork(): sys.exit()
+os.setsid()
+if os.fork(): sys.exit()
+subprocess.run(["curl", "http://httpbin.org/get"])'
+curl: (6) Could not resolve host: httpbin.org
+```
+
 # How it works
 
 When you run `httptap -- <command>`, httptap runs `<command>` in an isolated network namespace, injecting a certificate authority created on-the-fly in order to decrypt HTTPS traffic. Here is the process in detail:
