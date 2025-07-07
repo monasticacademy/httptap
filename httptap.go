@@ -108,6 +108,7 @@ func Main() error {
 		Head               bool     `help:"whether to include HTTP headers in terminal output"`
 		Body               bool     `help:"whether to include HTTP payloads in terminal output"`
 		PrintDNS           bool     `arg:"--print-dns" help:"whether to print DNS queries and responses"`
+		NoExit             bool     `arg:"--no-exit" help:"do not exit when the launched subprocess exits; instead keep proxying forever"`
 		Command            []string `arg:"positional"`
 	}
 	args.HTTPPorts = []int{80}
@@ -803,6 +804,20 @@ func Main() error {
 	if err != nil {
 		return fmt.Errorf("error running subprocess: %w", err)
 	}
+
+	// If the user requested that we do not exit when the subprocess exits, then stick around.
+	//
+	// This is critical for cases where a process daemonizes itself (forks, detaches itself to
+	// a new process group, then forks again). This is a common pattern for GUI apps launched
+	// from the command line.
+	//
+	// Under these circumstances, the subprocess we launch will return, but there will still be
+	// other subprocesses running in the network namespace. If the user wants to monitor their
+	// network activity then they can use "--no-exit"
+	if args.NoExit {
+		select {}
+	}
+
 	return nil
 }
 
