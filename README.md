@@ -55,7 +55,7 @@ sudo sysctl -w kernel.apparmor_restrict_unprivileged_unconfined=0
 sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 ```
 
-What this does is disable a [recent kernel feature that restricts unpriveleged user namespaces](https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces). The above may also be needed on other distros that have disabled unpriveleged user namespaces by default. I will update this documentation as I learn more. I am investigating ways to avoid the need for this entirely by shipping an apparmor profile with httptap.
+What this does is disable a [recent kernel feature that restricts unprivileged user namespaces](https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces). The above may also be needed on other distros that have disabled unprivileged user namespaces by default. I will update this documentation as I learn more. I am investigating ways to avoid the need for this entirely by shipping an apparmor profile with httptap.
 
 # Quickstart
 
@@ -120,7 +120,7 @@ $ httptap --https 443 6443 -- kubectl get all --insecure-skip-tls-verify
 <ordinary kubectl output here>
 ```
 
-In the above, `--insecure-skip-tls-verify` is necessary because kubectl doesn't use the httptap-generated certificate authority, and `--https 443 6443` says to treat TCP connections on ports 443 and 6443 as HTTPS connections, which is needed because my cluter's API endpoint uses port 6443.
+In the above, `--insecure-skip-tls-verify` is necessary because kubectl doesn't use the httptap-generated certificate authority, and `--https 443 6443` says to treat TCP connections on ports 443 and 6443 as HTTPS connections, which is needed because my cluster's API endpoint uses port 6443.
 
 Let's see how DNS-over-HTTP works when you use `--doh-url` with curl:
 
@@ -174,11 +174,11 @@ There are many HAR viewers out there that can visualize this dump file. For exam
 
 ![HAR Analyzer Screenshot](docs/har-screenshot.png)
 
-Again, what you're looking at here is one HTTP request to https://monasticacademy.org that returns a 308 Redirect, followed by a second HTTP request to https://www.monasticacademy.org that return a 200 OK.
+Again, what you're looking at here is one HTTP request to https://monasticacademy.org that returns a 308 Redirect, followed by a second HTTP request to https://www.monasticacademy.org that returns a 200 OK.
 
 # Reaching localhost
 
-To reach a localhost port, replace "localhost" with "host.httptap.local" or the special IP address 169.254.77.65. Traffic to these destinations will routed to localhost on your machine.
+To reach a localhost port, replace "localhost" with "host.httptap.local" or the special IP address 169.254.77.65. Traffic to these destinations will be routed to localhost on your machine.
 
 The situation here is that in linux every network namespace automatically gets its own loopback device (127.0.0.1), and these can't be shared. This means that if a process running within httptap tries to connect to 127.0.0.1:1234, it'll actually be connecting to a "different" 127.0.0.1 from another process on your machine listening on this same address and port, and you won't be able to connect.
 
@@ -197,7 +197,7 @@ $ httptap --no-exit -- code --ignore-certificate-errors .
 ...
 ```
 
-You will have to press ctrl+C to kill httptap once you exit vscode.
+You will have to press Ctrl+C to kill httptap once you exit vscode.
 
 In the above, without `--no-exit`, httptap would exit immediately after launching vscode. However, even though the subprocess launched by httptap has exited, that subprocess created a whole separate process tree before it did so. That process tree is the actual GUI app, and it is still pinned to the httptap network namespace. If httptap exits then the network namespace will continue to exist, and the GUI app will continue to run, but nobody will be reading packets sent to the TUN device that is only available network interface in that network namespace, and as a result the app will have no network connectivity. The workaround for this is the `--no-exit` flag that asks httptap to keep proxying network traffic even after the immediate subprocess exits.
 
@@ -210,7 +210,7 @@ $ httptap --no-exit -- setsid setsid curl http://httpbin.org/get
 
 Without the `--no-exit` flag, the above fails:
 ```bash
-$ httptap -- setsid setsid curl http://httpbin.org/get
+$ httptap -- setsid curl http://httpbin.org/get
 curl: (6) Could not resolve host: httpbin.org
 ```
 
@@ -241,7 +241,7 @@ When you run `httptap -- <command>`, httptap runs `<command>` in an isolated net
 
 In linux, there is a kernel API for creating and configuring network interfaces. Conventionally, a network interface would be a physical ethernet or WiFi controller in your computer, but it is possible to create a special kind of network interface called a TUN device. A TUN device shows up to the system in the way that any network interface shows up, but any traffic written to it will be delivered to a file descriptor held by the process that created it. Httptap creates a TUN device and runs the subprocess in an environment in which all network traffic is routed through that device.
 
-There is also a kernel API in linux for creating network namespaces. A network namespace is a list of network interfaces and routing rules. When a process is started in linux, it can be run in a specified network namespace. By default, processes run in a root network namespace that we do not want to make chagnes to because doing so would affect all network traffic on the system. Instead, we create a network namespace in which there are only two network interfaces: a loopback device (127.0.0.1) and a TUN device that delivers traffic to us. Then we run the subprocess in that namespace.
+There is also a kernel API in linux for creating network namespaces. A network namespace is a list of network interfaces and routing rules. When a process is started in linux, it can be run in a specified network namespace. By default, processes run in a root network namespace that we do not want to make changes to because doing so would affect all network traffic on the system. Instead, we create a network namespace in which there are only two network interfaces: a loopback device (127.0.0.1) and a TUN device that delivers traffic to us. Then we run the subprocess in that namespace.
 
 The traffic from the network device is delivered to us as raw IP packets. We must parse the IP packets as well as the inner TCP and UDP packets, and write raw IP packets back to the subprocess. This requires a software implementation of the TCP/IP protocol, which is by far the most difficult part of httptap. The TCP/IP implementation in httptap is missing many aspects of the full TCP protocol, but still works reasonably well for its purpose.
 
@@ -249,7 +249,7 @@ Suppose the subprocess makes an HTTP request to www.example.com. The first thing
 
 When a client makes an HTTPS request, it asks the server for evidence that it is who it says it is. If the server has a certificate signed by a certificate authority, it can use that certificate to prove that it is who it says it is. The client will only accept such a certificate if it trusts the certificate authority that signed the certificate. Operating systems, web browsers, and many other pieces of software come with a list of a few hundred certificate authorities that they trust. Many of these pieces of software have ways for users to add additional certificate authorities to this list. We make use of this.
 
-When httptap starts, it creates a certificate authority (actually a private key plus a corresponding x509 certificate), writes it to a file on the filesystem visible only to the subprocess, and sets a few environment variables -- again only visible to the subprocess being run -- that add this certificate authority to the list of trusted certificate authorities. Since the subprocess trusts this certificate authority, and httptap holds the private key for the certificate authority, it can prove to the subprocess that it is the server which which the subprocess was trying to communicate. In this way we can read the plaintext HTTP requests.
+When httptap starts, it creates a certificate authority (actually a private key plus a corresponding x509 certificate), writes it to a file on the filesystem visible only to the subprocess, and sets a few environment variables -- again only visible to the subprocess being run -- that add this certificate authority to the list of trusted certificate authorities. Since the subprocess trusts this certificate authority, and httptap holds the private key for the certificate authority, it can prove to the subprocess that it is the server which the subprocess was trying to communicate. In this way we can read the plaintext HTTP requests.
 
 # How it was made
 
