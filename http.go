@@ -49,7 +49,7 @@ var httpListeners []httpListener
 // the complete set of HTTP calls up to the present moment
 var httpCalls []*HTTPCall
 
-// the mutex that protects the above slcies
+// the mutex that protects the above slices
 var httpMu sync.Mutex
 
 // add a listener that will receive events for each next HTTP call; the set of historical

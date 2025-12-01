@@ -764,7 +764,7 @@ func Main() error {
 		return fmt.Errorf("invalid stack %q; valid choices are 'gvisor' or 'homegrown'", args.Stack)
 	}
 
-	verbosef("launching third stage targetting uid %d, gid %d...", args.UID, args.GID)
+	verbosef("launching third stage targeting uid %d, gid %d...", args.UID, args.GID)
 
 	// launch the third stage in a second user namespace, this time with mappings reversed
 	cmd := exec.Command("/proc/self/exe")
