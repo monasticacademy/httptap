@@ -276,7 +276,7 @@ func proxyHTTPScheme(dst http.RoundTripper, conn net.Conn, outgoingScheme string
 	responsebody, err := decodeContent(&respbody, resp.Header["Content-Encoding"])
 	if err != nil {
 		errorf("error decoding response body as %v, will return raw bytes", resp.Header["Content-Encoding"])
-		requestbody = reqbody.Bytes()
+		responsebody = respbody.Bytes()
 	}
 
 	// make the summary the we will log to disk and expose via the API
