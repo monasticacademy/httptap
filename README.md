@@ -210,7 +210,7 @@ $ httptap --no-exit -- setsid setsid curl http://httpbin.org/get
 
 Without the `--no-exit` flag, the above fails:
 ```bash
-$ httptap -- setsid curl http://httpbin.org/get
+$ httptap -- setsid setsid curl http://httpbin.org/get
 curl: (6) Could not resolve host: httpbin.org
 ```
 
