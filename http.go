@@ -49,7 +49,7 @@ var httpListeners []httpListener
 // the complete set of HTTP calls up to the present moment
 var httpCalls []*HTTPCall
 
-// the mutex that protects the above slcies
+// the mutex that protects the above slices
 var httpMu sync.Mutex
 
 // add a listener that will receive events for each next HTTP call; the set of historical
@@ -276,7 +276,7 @@ func proxyHTTPScheme(dst http.RoundTripper, conn net.Conn, outgoingScheme string
 	responsebody, err := decodeContent(&respbody, resp.Header["Content-Encoding"])
 	if err != nil {
 		errorf("error decoding response body as %v, will return raw bytes", resp.Header["Content-Encoding"])
-		requestbody = reqbody.Bytes()
+		responsebody = respbody.Bytes()
 	}
 
 	// make the summary the we will log to disk and expose via the API

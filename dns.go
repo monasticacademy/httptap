@@ -45,7 +45,7 @@ func (p dnsPairA) Answers() []string {
 	return answers
 }
 
-// dnsWatcher receives information about each intercepted DNS query, and the response provided
+// dnsWatcher receives information about each intercepted DNS query and the response provided
 type dnsWatcher func(*dnsCall)
 
 // the listeners waiting for HTTPCalls

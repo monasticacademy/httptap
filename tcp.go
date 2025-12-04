@@ -287,7 +287,7 @@ func (s *tcpStream) Write(payload []byte) (int, error) {
 		SrcPort: layers.TCPPort(s.world.Port),
 		DstPort: layers.TCPPort(s.subprocess.Port),
 		Seq:     atomic.AddUint32(&s.seq, sz) - sz, // sequence number on our side
-		Ack:     atomic.LoadUint32(&s.ack),         // laste sequence number we saw on their side
+		Ack:     atomic.LoadUint32(&s.ack),         // last sequence number we saw on their side
 		ACK:     true,                              // this indicates that we are acknolwedging some bytes
 		Window:  64240,                             // number of bytes we are willing to receive (copied from sender)
 	}
@@ -333,10 +333,10 @@ func (s *tcpStream) Write(payload []byte) (int, error) {
 func (s *tcpStream) Close() error {
 	switch s.state {
 	case StateInit:
-		errorf("application tried tp close a TCP stream in state %v, returning error", s.state)
+		errorf("application tried to close a TCP stream in state %v, returning error", s.state)
 		return fmt.Errorf("cannot close TCP stream in state %v", s.state)
 	case StateFinished:
-		verbosef("application tried tp close a TCP stream in state %v, ignoring", s.state)
+		verbosef("application tried to close a TCP stream in state %v, ignoring", s.state)
 		return nil
 	}
 
