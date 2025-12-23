@@ -91,6 +91,7 @@ func Main() error {
 	var args struct {
 		Verbose            bool   `arg:"-v,--verbose,env:HTTPTAP_VERBOSE"`
 		Version            bool   `arg:"-V,--version" help:"print version information"`
+		NewUserNamespace   bool   `arg:"--new-user-namespace,env:HTTPTAP_NEW_USER_NAMESPACE" help:"create a new user namespace even if we already have CAP_SYS_ADMIN"`
 		NoNewUserNamespace bool   `arg:"--no-new-user-namespace,env:HTTPTAP_NO_NEW_USER_NAMESPACE" help:"do not create a new user namespace (must be run as root)"`
 		Stderr             bool   `arg:"env:HTTPTAP_LOG_TO_STDERR" help:"log to standard error (default is standard out)"`
 		Tun                string `default:"httptap" help:"name of the TUN device that will be created"`
@@ -130,72 +131,82 @@ func Main() error {
 	isVerbose = args.Verbose
 
 	// first we re-exec ourselves in a new user namespace
-	if !strings.HasPrefix(os.Args[0], "httptap.stage.") && !args.NoNewUserNamespace {
-		verbosef("at first stage, launching second stage in a new user namespace...")
+	if !strings.HasPrefix(os.Args[0], "httptap.stage.") {
 
-		// Decide which user and group we should later switch to. We must do this before creating the user
-		// namespace because then we will not know which user we were originally launched by.
-		uid := os.Geteuid()
-		gid := os.Getegid()
-		if args.User != "" {
-			u, err := user.Lookup(args.User)
-			if err != nil {
-				return fmt.Errorf("error looking up user %q: %w", args.User, err)
-			}
-
-			uid, err = strconv.Atoi(u.Uid)
-			if err != nil {
-				return fmt.Errorf("error parsing user id %q as a number: %w", u.Uid, err)
-			}
-
-			gid, err = strconv.Atoi(u.Gid)
-			if err != nil {
-				return fmt.Errorf("error parsing group id %q as a number: %w", u.Gid, err)
-			}
-		}
-
-		// Here we move to a new user namespace, which is an unpriveleged operation, and which
-		// allows us to do everything else without being root.
-		//
-		// In a C program, we could run unshare(CLONE_NEWUSER) and directly be in a new user
-		// namespace. In a Go program that is not possible because all Go programs are multithreaded
-		// (even with GOMAXPROCS=1), and unshare(CLONE_NEWUSER) is only available to single-threaded
-		// programs.
-		//
-		// Our best option is to launch ourselves in a subprocess that is in a new user namespace,
-		// using /proc/self/exe, which contains the executable code for the current process. This
-		// is the same approach taken by docker's reexec package.
-
-		cmd := exec.Command("/proc/self/exe")
-		cmd.Args = append([]string{
-			"httptap.stage.2",
-			"--uid", strconv.Itoa(uid),
-			"--gid", strconv.Itoa(gid)},
-			os.Args[1:]...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Env = os.Environ()
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: syscall.CLONE_NEWUSER,
-			UidMappings: []syscall.SysProcIDMap{{
-				ContainerID: 0,
-				HostID:      os.Getuid(),
-				Size:        1,
-			}},
-			GidMappings: []syscall.SysProcIDMap{{
-				ContainerID: 0,
-				HostID:      os.Getgid(),
-				Size:        1,
-			}},
-		}
-		err := cmd.Run()
-		// if the subprocess exited with an error code then do not print any
-		// extra information but do exit with the same code
+		// read capabilities from /proc/self/status, or assume 0 capabilities if that fails
+		capabilities, err := capabilities()
 		if err != nil {
-			return fmt.Errorf("error re-executing ourselves in a new user namespace: %w", err)
+			verbosef("error reading capabilities from /proc/self/status: %v, assuming we have no capabilities", err)
 		}
-		return nil
+
+		// decide whether we should create a new user namespace
+		if args.NewUserNamespace || (!args.NoNewUserNamespace && capabilities&unix.CAP_SYS_ADMIN == 0) {
+			verbosef("at first stage, launching second stage in a new user namespace...")
+
+			// Decide which user and group we should later switch to. We must do this before creating the user
+			// namespace because then we will not know which user we were originally launched by.
+			uid := os.Geteuid()
+			gid := os.Getegid()
+			if args.User != "" {
+				u, err := user.Lookup(args.User)
+				if err != nil {
+					return fmt.Errorf("error looking up user %q: %w", args.User, err)
+				}
+
+				uid, err = strconv.Atoi(u.Uid)
+				if err != nil {
+					return fmt.Errorf("error parsing user id %q as a number: %w", u.Uid, err)
+				}
+
+				gid, err = strconv.Atoi(u.Gid)
+				if err != nil {
+					return fmt.Errorf("error parsing group id %q as a number: %w", u.Gid, err)
+				}
+			}
+
+			// Here we move to a new user namespace, which is an unpriveleged operation, and which
+			// allows us to do everything else without being root.
+			//
+			// In a C program, we could run unshare(CLONE_NEWUSER) and directly be in a new user
+			// namespace. In a Go program that is not possible because all Go programs are multithreaded
+			// (even with GOMAXPROCS=1), and unshare(CLONE_NEWUSER) is only available to single-threaded
+			// programs.
+			//
+			// Our best option is to launch ourselves in a subprocess that is in a new user namespace,
+			// using /proc/self/exe, which contains the executable code for the current process. This
+			// is the same approach taken by docker's reexec package.
+
+			cmd := exec.Command("/proc/self/exe")
+			cmd.Args = append([]string{
+				"httptap.stage.2",
+				"--uid", strconv.Itoa(uid),
+				"--gid", strconv.Itoa(gid)},
+				os.Args[1:]...)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Env = append(os.Environ(), "HTTPTAP_IN_NEW_USER_NAMESPACE=1")
+			cmd.SysProcAttr = &syscall.SysProcAttr{
+				Cloneflags: syscall.CLONE_NEWUSER,
+				UidMappings: []syscall.SysProcIDMap{{
+					ContainerID: 0,
+					HostID:      os.Getuid(),
+					Size:        1,
+				}},
+				GidMappings: []syscall.SysProcIDMap{{
+					ContainerID: 0,
+					HostID:      os.Getgid(),
+					Size:        1,
+				}},
+			}
+			err := cmd.Run()
+			// if the subprocess exited with an error code then do not print any
+			// extra information but do exit with the same code
+			if err != nil {
+				return fmt.Errorf("error re-executing ourselves in a new user namespace: %w", err)
+			}
+			return nil
+		}
 	}
 
 	if os.Args[0] == "httptap.stage.3" {
@@ -485,7 +496,7 @@ func Main() error {
 		}
 	}()
 
-	// start printing DNS class to standard output
+	// start printing DNS calls to standard output
 	if args.PrintDNS {
 		dnsReqColor := color.New(color.FgBlue)
 		dnsRespColor := color.New(color.FgMagenta)
@@ -778,7 +789,7 @@ func Main() error {
 	cmd.Stderr = os.Stderr
 	cmd.Env = env
 
-	if !args.NoNewUserNamespace {
+	if _, flag := os.LookupEnv("HTTPTAP_IN_NEW_USER_NAMESPACE"); flag {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Cloneflags: syscall.CLONE_NEWUSER,
 			UidMappings: []syscall.SysProcIDMap{{
