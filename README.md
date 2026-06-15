@@ -1,9 +1,9 @@
-<h1 align="center">
+<div align="center">
   <img src="./docs/readme-header.webp" alt="Monastic Academy" height="450px">
-  <br>
-  httptap
-  </br>
-</h1>
+  <p><em>The Monastic Academy for the Preservation of Life on Earth (a real place)</em></p>
+  <p><strong>👉 Applications for our <a href="https://cohort.monasticacademy.org/code/ht">next monastic training cohort</a> (the training that produced httptap) close June 19. 👈</strong></p>
+</div>
+<h1 align="center">httptap</h1>
 <p align="center">
   <a href="https://pkg.go.dev/github.com/monasticacademy/httptap"><img src="https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square" alt="Documentation"></a>
   <a href="https://github.com/monasticacademy/httptap/actions"><img src="https://github.com/monasticacademy/httptap/workflows/Test/badge.svg" alt="Build Status"></a>
@@ -18,7 +18,7 @@ $ httptap -- curl https://monasticacademy.org
 <--- 308 https://monasticacademy.org/ (15 bytes)
 ```
 
-Now let's try the same thing with an HTTP request from python. This time we see that python follows the redirect and gets a 200 OK response:
+Now let's try the same thing with an HTTP request from python.
 
 ```shell
 httptap -- python -c "import requests; requests.get('https://monasticacademy.org')"
@@ -27,6 +27,8 @@ httptap -- python -c "import requests; requests.get('https://monasticacademy.org
 ---> GET https://www.monasticacademy.org/
 <--- 200 https://www.monasticacademy.org/ (5796 bytes)
 ```
+
+This time we see that python follows the redirect and gets a 200 OK response:
 
 To run `httptap` you do not need to be the root user. You do not need to set up any kind of daemon or make any system-wide changes to your system (edit: on Ubuntu 23.10 and later you will need to run [the sysctl documented below](#ubuntu-2310-and-later)). It will not create any iptables rules or change your routing table, and generally will not affect any other processes running on the same system. The `httptap` executable is a static Go binary that runs without dependencies.
 
@@ -38,7 +40,7 @@ Httptap only runs on linux at present. It makes use of linux-specific system cal
 curl -L https://github.com/monasticacademy/httptap/releases/latest/download/httptap_linux_$(uname -m).tar.gz | tar xzf -
 ```
 
-For all versions and CPU architectures see the [latest releases page](https://github.com/monasticacademy/httptap/releases/latest).
+For all versions and CPU architectures see the [releases](https://github.com/monasticacademy/httptap/releases/latest).
 
 # Install with Go
 
@@ -253,13 +255,11 @@ When httptap starts, it creates a certificate authority (actually a private key 
 
 # How it was made
 
-Httptap is part of an experiment in developing technology in the context of Buddhist monasticism. It was developed at the [Monastic Academy](https://www.monasticacademy.org) in Vermont in the US. We believe that a monastic schedule, and the practice of the Buddhist spiritual path more generally, provide ideal conditions for technological development. The way we have set things up is that we live and practice together on a bit over a hundred acres of land. In the mornings and evenings we chant and meditate together, and for about one week out of every month we run and participate in a meditation retreat. The rest of the time we work together on everything from caring for the land, maintaining the buildings, cooking, cleaning, planning, fundraising, and for the past few years developing software together. This project is a demonstration of what is possible on the software side, but of course to see the full product of our work you should come visit us.
+Httptap is part of an experiment in developing technology in the context of Buddhist monasticism. It was developed at the [Monastic Academy](https://www.monasticacademy.org) in Vermont in the US. We believe that a monastic schedule and the practice of the Buddhist spiritual path provide ideal conditions for technological development. The way we have set things up is that we live and practice together on a bit over a hundred acres of land. In the mornings and evenings we chant and meditate together, and for about one week out of every month we run and participate in a meditation retreat. The rest of the time we work together on everything from caring for the land, maintaining the buildings, cooking, cleaning, planning, fundraising, and for the past few years developing software together. This project is a demonstration of what is possible on the software side, but of course to see the full thing you should come visit us.
 
 If you're interested, we run an [AI fellowship program](https://www.monasticacademy.org/ai-fellowship), which is a funded month-to-month program where you live on the land, participate in the schedule, and do your own work during the day. We also have a 3-month [monastic training program](https://www.monasticacademy.org/train), which can lead into our long-term residential training.
 
-For the past few years we have been recording a lecture series called [Buddhism for AI](https://buddhismforai.sutra.co). It's about our efforts to design a religion (yes, a religion) based on Buddhism for consumption directly by AI systems. We actually feel this is very important work given the world situation.
-
-Finally, our head teacher [Soryu Forall](https://www.monasticacademy.org/teacher) published a book a few years back called [Buddhism For All](https://buddhism.net/buddhism-for-all-book/). We're working on a sequel at the moment.
+Our head teacher [Soryu Forall](https://www.monasticacademy.org/teacher) published a book a few years back called [Buddhism For All](https://buddhism.net/buddhism-for-all-book/). We're working on a sequel at the moment.
 
 ![MAPLE Group Photo](docs/group.webp)
 
